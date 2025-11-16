@@ -52,7 +52,7 @@
             <form id="criteria-form">
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Research Question:</label>
-                    <textarea id="research-question" rows="4" required class="w-full p-3 border rounded-lg" placeholder="What is the impact of LLMs on medical education?">What is the impact of large language models on medical education curricula?</textarea>
+                    <textarea id="research-question" rows="4" required class="w-full p-3 border rounded-lg" placeholder="What is the impact of LLMs on medical education?"></textarea>
                 </div>
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Date Limit (Optional):</label>
@@ -131,12 +131,12 @@
     <script type="module">
         const LLM_MODEL = "gemini-2.0-flash-exp";
         const PUBMED_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
-        const BATCH_SIZE = 10;
+        const BATCH_SIZE = 2;
         const MAX_TEXT = 5000;
         let cancelOp = false;
 
         const state = { articles: [], criteria: {}, pubmedQuery: '', dateLimit: null, currentDraft: '', uploadedTexts: {} };
-        const SPINNER = '<svg class="animate-spin inline-block h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+        const SPINNER = '<svg class="animate-spin inline-block h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>';
 
         function getKey() {
             const k = document.getElementById('api-key-input').value.trim();
@@ -178,14 +178,26 @@
             ptxt.textContent = `${txt} (${cur}/${tot})`;
         }
 
-        async function fetchRetry(url, opts = {}, retries = 3) {
+        async function fetchRetry(url, opts = {}, retries = 5) {
             for (let i = 0; i < retries; i++) {
                 if (cancelOp) throw new Error('Cancelled');
                 try {
                     const r = await fetch(url, opts);
                     if (!r.ok) {
                         if (r.status === 429 && i < retries - 1) {
-                            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+                            const retryAfter = r.headers.get('Retry-After');
+                            let wait;
+                            if (retryAfter) {
+                                wait = isNaN(Number(retryAfter))
+                                    ? Math.max(0, new Date(retryAfter).getTime() - Date.now())
+                                    : parseFloat(retryAfter) * 1000;
+                                if (wait > 10 * 60 * 1000) wait = 60 * 1000;
+                                if (wait < 1000) wait = 1000;
+                            } else {
+                                wait = Math.pow(2, i) * 1000;
+                            }
+                            console.warn(`429! Waiting ${wait}ms on retry ${i + 1}/${retries}`);
+                            await new Promise(res => setTimeout(res, wait));
                             continue;
                         }
                         throw new Error(`API Error: ${r.status}`);
@@ -193,7 +205,8 @@
                     return r;
                 } catch (e) {
                     if (i === retries - 1) throw e;
-                    await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+                    let wait = Math.pow(2, i) * 1000;
+                    await new Promise(res => setTimeout(res, wait));
                 }
             }
         }
@@ -217,7 +230,7 @@
                 systemInstruction: { parts: [{ text: sys }] }
             };
             if (schema) payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
-            
+
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${key}`;
             const r = await fetchRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const data = await r.json();
@@ -518,7 +531,7 @@
             const isInc = (a.Decision === 'INCLUDE' && !a.Override) || a.Override;
             const cls = isInc ? (a.Override ? 'bg-yellow-100 text-yellow-800 border-yellow-300' : 'bg-green-100 text-green-800 border-green-300') : 'bg-red-100 text-red-800 border-red-300';
             const status = isInc ? (a.Override ? 'INCLUDED (Override)' : 'INCLUDED (AI)') : (a.Decision === 'EXCLUDE' ? 'EXCLUDED (AI)' : 'ERROR');
-            const btn = !isInc && a.Decision === 'EXCLUDE' ? `<button onclick="window.handleOverride('${a.PMID}')" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg">Override & Include</button>` : '';
+            const btn = !isInc && a.Decision === 'EXCLUDE' ? `<button onclick="window.handleOverride('${a.PMID}')" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg">Override &amp; Include</button>` : '';
             const pmc = a.PMCID ? `<span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">PMC ${a.PMCID.replace('PMC', '')}</span>` : '';
             
             return `
@@ -723,10 +736,13 @@
                 for (let i = 0; i < raw.length; i += BATCH_SIZE) {
                     if (cancelOp) break;
                     const batch = raw.slice(i, i + BATCH_SIZE);
-                    updateProgress(i + batch.length, raw.length, 'Screening');
-                    const results = await Promise.all(batch.map(a => screenArticle(a, state.criteria).then(r => ({ ...a, ...r }))));
-                    state.articles.push(...results);
-                    await new Promise(r => setTimeout(r, 500));
+                    for (const a of batch) {
+                        if (cancelOp) break;
+                        updateProgress(state.articles.length + 1, raw.length, 'Screening');
+                        const r = await screenArticle(a, state.criteria);
+                        state.articles.push({ ...a, ...r });
+                        await new Promise(res => setTimeout(res, 1100));
+                    }
                 }
                 
                 updateProgress(0, 0);
