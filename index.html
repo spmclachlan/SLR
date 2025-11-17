@@ -3,767 +3,1517 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-Assisted SLR Screener (Improved)</title>
+    <title>AI-Assisted SLR Screener</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
-        .scroll-container { max-height: 70vh; overflow-y: auto; border: 1px solid #e5e7eb; background-color: white; padding: 1rem; }
-        .article-card { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); transition: transform 0.2s; }
-        .article-card:hover { transform: translateY(-2px); }
-        #slr-draft-output { white-space: pre-wrap; font-family: 'Inter', sans-serif; }
-        #slr-draft-output h1, #slr-draft-output h2, #slr-draft-output h3 { font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; border-bottom: 1px solid #ddd; }
-        #slr-draft-output h1 { font-size: 2rem; } #slr-draft-output h2 { font-size: 1.5rem; } #slr-draft-output h3 { font-size: 1.25rem; }
-        .file-upload-label { cursor: pointer; transition: all 0.3s ease; }
-        .file-upload-label:hover { box-shadow: 0 4px 15px -3px rgba(59, 130, 246, 0.5); transform: translateY(-1px); }
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .progress-bar { transition: width 0.3s ease; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .scroll-container {
+            max-height: 70vh;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            background-color: white;
+            padding: 1rem;
+        }
+        .article-card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            transition: transform 0.2s;
+        }
+        .article-card:hover {
+            transform: translateY(-2px);
+        }
+        /* Custom styling for the report output */
+        #slr-draft-output {
+            white-space: pre-wrap;
+            font-family: 'Inter', sans-serif; 
+            text-align: left;
+        }
+        /* Style for Markdown headings converted to HTML */
+        #slr-draft-output h1, #slr-draft-output h2, #slr-draft-output h3 {
+            font-weight: bold;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #ddd;
+        }
+        #slr-draft-output h1 { font-size: 2rem; }
+        #slr-draft-output h2 { font-size: 1.5rem; }
+        #slr-draft-output h3 { font-size: 1.25rem; }
+
+        /* --- Styles for Document Uploader --- */
+        .file-upload-label {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .file-upload-label:hover {
+            box-shadow: 0 4px 15px -3px rgba(59, 130, 246, 0.5); /* blue-500 shadow */
+            transform: translateY(-1px);
+        }
+        /* Custom scrollbar for better visual on preview area */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; /* slate-300 */
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; /* slate-400 */
+        }
     </style>
 </head>
 <body>
     <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
         <header class="text-center mb-8 p-6 bg-white rounded-xl shadow-lg">
-            <h1 class="text-4xl font-extrabold text-blue-800">AI-Assisted SLR Screener</h1>
-            <p class="text-lg text-gray-600 mt-2">Automate screening using PubMed and Gemini AI</p>
-            <div class="mt-4">
-                <label for="api-key-input" class="block text-sm font-medium text-gray-700 mb-2">Gemini API Key (Required):</label>
-                <input type="password" id="api-key-input" class="w-full max-w-md mx-auto p-2 border border-gray-300 rounded-lg" placeholder="Enter your API key">
-                <p class="text-xs text-gray-500 mt-1">Get free key at <a href="https://makersuite.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">Google AI Studio</a></p>
-            </div>
+            <h1 class="text-4xl font-extrabold text-blue-800">Steve's AI-Assisted SLR Screener</h1>
+            <p class="text-lg text-gray-600 mt-2">Automate initial article screening using PubMed and Gemini.</p>
         </header>
 
-        <div id="progress-container" class="bg-white p-4 rounded-xl shadow-lg mb-4 hidden">
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-sm font-medium" id="progress-text">Processing...</span>
-                <span class="text-sm font-medium" id="progress-percentage">0%</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2.5">
-                <div class="progress-bar bg-blue-600 h-2.5 rounded-full" id="progress-bar" style="width: 0%"></div>
-            </div>
-            <button id="cancel-btn" class="mt-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm hidden">Cancel</button>
-        </div>
-
-        <div id="status-message" class="text-center text-lg font-medium py-4 rounded-lg shadow-inner hidden"></div>
-
+        <!-- Search Form & Criteria Panel (Step 1) -->
         <div id="input-panel" class="bg-white p-6 rounded-xl shadow-lg mb-8">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">1. Research Question</h2>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">1. Define Research Question & Date Range</h2>
             <form id="criteria-form">
                 <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Research Question:</label>
-                    <textarea id="research-question" rows="4" required class="w-full p-3 border rounded-lg" placeholder="What is the impact of LLMs on medical education?"></textarea>
+                    <label for="research-question" class="block text-sm font-medium text-gray-700 mb-1">Enter your Research Question or PICO Structure:</label>
+                    <textarea id="research-question" rows="4" required
+                              class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+                              placeholder="Example: What is the efficacy of large language models (LLMs) in improving diagnostic accuracy among primary care physicians?">What is the impact of large language models on medical education curricula?</textarea>
                 </div>
                 <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Date Limit (Optional):</label>
-                    <input type="number" id="date-limit" min="1900" max="2099" class="w-full p-3 border rounded-lg" placeholder="e.g., 2023">
+                    <label for="date-limit" class="block text-sm font-medium text-gray-700 mb-1">Date Limit (Optional): Only include articles published *since* this year (e.g., 2023)</label>
+                    <input type="number" id="date-limit" min="1900" max="2099" 
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150"
+                           placeholder="Leave empty for no date limit">
                 </div>
-                <button type="submit" id="generate-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Generate Criteria</button>
+                <button type="submit" id="generate-button"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                    Generate Criteria & PubMed Query
+                </button>
             </form>
         </div>
+        
+        <!-- System Messages & Loading Indicator -->
+        <div id="status-message" class="text-center text-lg font-medium py-4 rounded-lg shadow-inner hidden"></div>
 
+
+        <!-- Criteria Review and Screening Panel (Step 2) -->
         <div id="review-panel" class="bg-white p-6 rounded-xl shadow-lg mb-8 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">2. Review Criteria</h2>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">2. Review & Refine Criteria</h2>
             <form id="screening-form">
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">PubMed Query:</label>
-                    <input type="text" id="pubmed-query" required class="w-full p-3 border rounded-lg">
+                    <label for="pubmed-query" class="block text-sm font-medium text-gray-700 mb-1">Suggested PubMed Query (Edit if needed)</label>
+                    <input type="text" id="pubmed-query" required
+                           class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150">
                 </div>
+
                 <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Criteria (JSON):</label>
-                    <textarea id="inclusion-criteria" rows="6" required class="w-full p-3 border rounded-lg font-mono text-sm"></textarea>
+                    <label for="inclusion-criteria" class="block text-sm font-medium text-gray-700 mb-1">Inclusion/Exclusion Criteria (Edit if needed - JSON Format)</label>
+                    <textarea id="inclusion-criteria" rows="6" required
+                              class="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm focus:ring-blue-500 focus:border-blue-500 transition duration-150">
+<!-- Generated content goes here -->
+</textarea>
                 </div>
-                <button type="submit" id="start-screening-button" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg">Start Screening</button>
+                
+                <button type="submit" id="start-screening-button"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-4 focus:ring-green-300">
+                    Start AI Abstract Screening (Fetch Articles)
+                </button>
             </form>
         </div>
 
+
+        <!-- Results Panel (Step 3) -->
         <div id="results-panel" class="hidden">
-            <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b-4 border-blue-200 pb-2">3. Screening Results</h2>
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b-4 border-blue-200 pb-2">3. Abstract Screening Results</h2>
+            
+            <!-- LLM Included List -->
             <div class="mb-8">
-                <h3 class="text-2xl font-semibold text-green-700 mb-3">Included (<span id="included-count">0</span>)</h3>
-                <div id="included-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2"></div>
+                <h3 class="text-2xl font-semibold text-green-700 mb-3 flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Included by Abstract (<span id="included-count">0</span>)
+                </h3>
+                <p class="text-gray-500 mb-3">These articles meet your criteria and are ready for full text review or data extraction.</p>
+                <div id="included-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2">
+                    <!-- Articles go here -->
+                </div>
             </div>
+
+            <!-- LLM Excluded (Needs Review) List -->
             <div>
-                <h3 class="text-2xl font-semibold text-red-600 mb-3">Excluded (<span id="excluded-count">0</span>)</h3>
-                <div id="excluded-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2"></div>
+                <h3 class="text-2xl font-semibold text-red-600 mb-3 flex items-center">
+                    <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Excluded by Abstract (Review Required) (<span id="excluded-count">0</span>)
+                </h3>
+                <p class="text-gray-500 mb-3">Review these to see if the AI was wrong and use the 'Override' button if needed.</p>
+                <div id="excluded-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2">
+                    <!-- Articles go here -->
+                </div>
             </div>
-            <button onclick="window.exportResults()" class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg">Export Results</button>
+            
+             <button onclick="window.exportResults()" 
+                    class="mt-8 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                    Export Abstract Screening Results (JSON)
+            </button>
         </div>
-
+        
+        <!-- Document Upload Panel (Step 4) -->
         <div id="upload-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">4. Upload Full Texts</h2>
-            <div id="retrieval-status-message" class="mb-4 p-3 rounded-lg hidden"></div>
-            <input type="file" id="fileInput" accept=".txt,.md,.log,.csv" multiple class="hidden">
-            <label for="fileInput" class="file-upload-label flex flex-col items-center justify-center p-8 border-4 border-purple-500 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200">
-                <span class="text-lg font-semibold">Click to upload files (PMID in filename)</span>
-            </label>
-            <button id="start-full-text-review-button" class="hidden mt-4 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg">Start Full Text Review</button>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">4. Full Text Retrieval Status & Upload</h2>
+            <p class="text-gray-500 mb-4">The system has attempted to automatically retrieve full text for open-access articles. Please **manually upload** any remaining paywalled articles corresponding to your included PMIDs.</p>
+            
+            <div id="retrieval-status-message" class="mb-4 p-3 rounded-lg bg-yellow-50 text-yellow-800 font-medium hidden"></div>
+
+            <div class="border-2 border-dashed border-purple-200 p-6 rounded-xl bg-purple-50">
+                <input type="file" id="fileInput" accept=".txt,.md,.log,.csv" multiple class="hidden" onchange="window.handleFileSelect()">
+
+                <label for="fileInput" class="file-upload-label flex flex-col items-center justify-center p-8 border-4 border-purple-500 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors duration-200">
+                    <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.884-7.904A5 5 0 0115 5a4 4 0 01.442 7.91l-1.074.214a1 1 0 00-.773.96l-.001 1.054a1 1 0 00.773.96l2.149.429a1 1 0 01.773.96v1.054a1 1 0 00.773.96l-1.074.214A4 4 0 0117 21a4 4 0 01-4-4v-1.054a1 1 0 00-.773-.96l-2.149-.429a1 1 0 01-.773-.96v-1.054a1 1 0 00-.773-.96l-1.074-.214A4 4 0 017 16z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v-8m0 0l-3 3m3-3l3 3"></path>
+                    </svg>
+                    <span class="text-lg font-semibold">Click here to upload text files (PMID in filename)</span>
+                    <span class="text-sm font-medium text-purple-600 mt-1">(Supports .txt, .md, .log, .csv)</span>
+                </label>
+            </div>
+            
+            <button id="start-full-text-review-button" onclick="window.startFullTextReview()"
+                    class="hidden mt-4 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-4 focus:ring-red-300">
+                Start LLM Full Text Inclusion Review
+            </button>
+            
+            <!-- Document Preview Area -->
             <div id="fileListContainer" class="mt-4 space-y-4">
-                <p id="initialMessage" class="text-center text-gray-500 italic">Files will appear here</p>
+                <p id="initialMessage" class="text-center text-gray-500 italic p-3">Uploaded or automatically retrieved documents will appear here.</p>
+            </div>
+        </div>
+        
+        <!-- Full Text Review Panel (Step 5) -->
+        <div id="full-text-review-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">5. Full Text Review Results</h2>
+            <div id="final-review-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2">
+                <p class="text-center text-gray-500 italic">No full text review has been run yet.</p>
             </div>
         </div>
 
-        <div id="full-text-review-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">5. Full Text Results</h2>
-            <div id="final-review-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2"></div>
-        </div>
-
+        
+        <!-- SLR Report Generation Panel (Step 6) -->
         <div id="report-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">6. Generate Report</h2>
-            <textarea id="drafting-instructions" rows="2" class="w-full p-3 border rounded-lg mb-4" placeholder="Optional instructions..."></textarea>
-            <button id="generate-report-button" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg">Generate Draft</button>
-            <div id="slr-draft-output" class="mt-6 p-4 border rounded-lg bg-gray-50 max-h-[50vh] overflow-y-auto"></div>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">6. Generate Systematic Review Draft</h2>
+            
+            <div class="mb-6">
+                <label for="drafting-instructions" class="block text-sm font-medium text-gray-700 mb-1">Drafting Instructions (Optional): Tell the AI what kind of report to write.</label>
+                <textarea id="drafting-instructions" rows="2" 
+                          class="w-full p-3 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500 transition duration-150"
+                          placeholder="e.g., Summarize key findings in a non-technical way, suitable for a general audience."></textarea>
+            </div>
+            
+            <button id="generate-report-button"
+                    class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-4 focus:ring-purple-300">
+                Generate Draft SLR
+            </button>
+            
+            <div id="slr-draft-output" class="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50 max-h-[50vh] overflow-y-auto">
+                <!-- LLM generated report will appear here -->
+            </div>
         </div>
-
+        
+        <!-- SLR Draft Modification Panel (Step 7) -->
         <div id="modification-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">7. Modify Draft</h2>
-            <textarea id="modification-request" rows="3" class="w-full p-3 border rounded-lg mb-4" placeholder="Modification request..."></textarea>
-            <button id="refine-report-button" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-lg">Refine</button>
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">7. Modify & Refine Draft</h2>
+            <div class="mb-6">
+                <label for="modification-request" class="block text-sm font-medium text-gray-700 mb-1">Modification Request:</label>
+                <textarea id="modification-request" rows="3" 
+                          class="w-full p-3 border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150"
+                          placeholder="e.g., Expand the conclusion to include future research directions, or change the tone to be more critical."></textarea>
+            </div>
+            <button id="refine-report-button"
+                    class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-4 focus:ring-orange-300">
+                Refine Draft
+            </button>
+        </div>
+        
+        <!-- PRISMA Diagram Panel (Step 8) -->
+        <div id="prisma-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">8. Generate PRISMA Flow Diagram</h2>
+            
+            <button id="generate-prisma-button" onclick="window.generatePrismaDiagram()"
+                    class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 focus:outline-none focus:ring-4 focus:ring-gray-300">
+                Generate PRISMA Diagram
+            </button>
+            
+            <div id="prisma-output" class="mt-6 p-4 rounded-lg bg-white overflow-x-auto text-center">
+                <!-- SVG diagram will appear here -->
+                <p class="text-gray-500 italic">Click the button above to visualize the flow of the review.</p>
+            </div>
         </div>
 
-        <div id="prisma-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">8. PRISMA Diagram</h2>
-            <button onclick="window.generatePrismaDiagram()" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg">Generate Diagram</button>
-            <div id="prisma-output" class="mt-6 p-4 rounded-lg bg-white overflow-x-auto text-center"></div>
-        </div>
     </div>
 
+    <!-- JavaScript Logic -->
     <script type="module">
-        const LLM_MODEL = "gemini-2.0-flash-exp";
-        const PUBMED_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
-        const BATCH_SIZE = 2;
-        const MAX_TEXT = 5000;
-        let cancelOp = false;
+        // Global variables for Canvas environment
+        const apiKey = "AIzaSyDpqUR_N4g_lHf1zAW53st7iTWpDQlkXsM";
+        const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
+        const PUBMED_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 
-        const state = { articles: [], criteria: {}, pubmedQuery: '', dateLimit: null, currentDraft: '', uploadedTexts: {} };
-        const SPINNER = '<svg class="animate-spin inline-block h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>';
+        // Application State
+        const appState = {
+            articles: [], // Array to hold all processed articles
+            criteria: {},
+            pubmedQuery: '',
+            dateLimit: null,
+            currentDraft: '',
+            uploadedTexts: {} // Stores { filename: content, ... } for both manual and auto-retrieved
+        };
 
-        function getKey() {
-            const k = document.getElementById('api-key-input').value.trim();
-            if (!k) throw new Error('Enter API key');
-            return k;
-        }
+        // --- Utility Functions ---
 
-        function setLoading(id, loading) {
-            const btn = document.getElementById(id);
-            if (!btn) return;
-            if (loading) {
-                btn.setAttribute('data-text', btn.textContent);
-                btn.disabled = true;
-                btn.innerHTML = SPINNER + ' Working...';
+        // HTML for the loading spinner
+        const SPINNER_HTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+        
+        /**
+         * Toggles the loading state of a specific button.
+         */
+        function setButtonLoading(buttonId, isLoading) {
+            const button = document.getElementById(buttonId);
+            if (!button) return;
+
+            const originalText = button.getAttribute('data-original-text');
+            
+            if (isLoading) {
+                if (!originalText) button.setAttribute('data-original-text', button.textContent.trim());
+                button.disabled = true;
+                button.innerHTML = `<span class="flex items-center justify-center text-white">${SPINNER_HTML.replace('text-current', 'text-white')} Working...</span>`;
             } else {
-                btn.disabled = false;
-                btn.innerHTML = btn.getAttribute('data-text') || 'Start';
+                button.disabled = false;
+                button.innerHTML = originalText || 'Start';
+                button.removeAttribute('data-original-text');
             }
         }
 
-        function updateProgress(cur, tot, txt = 'Processing') {
-            const cont = document.getElementById('progress-container');
-            const bar = document.getElementById('progress-bar');
-            const pct = document.getElementById('progress-percentage');
-            const ptxt = document.getElementById('progress-text');
-            const cbtn = document.getElementById('cancel-btn');
-            
-            if (cur === 0 && tot === 0) {
-                cont.classList.add('hidden');
-                cbtn.classList.add('hidden');
-                return;
-            }
-            
-            cont.classList.remove('hidden');
-            cbtn.classList.remove('hidden');
-            const p = Math.round((cur / tot) * 100);
-            bar.style.width = p + '%';
-            pct.textContent = p + '%';
-            ptxt.textContent = `${txt} (${cur}/${tot})`;
-        }
-
-        async function fetchRetry(url, opts = {}, retries = 5) {
+        /**
+         * Generic fetch wrapper with exponential backoff for API robustness.
+         */
+        async function fetchWithRetry(url, options = {}, retries = 3) {
             for (let i = 0; i < retries; i++) {
-                if (cancelOp) throw new Error('Cancelled');
                 try {
-                    const r = await fetch(url, opts);
-                    if (!r.ok) {
-                        if (r.status === 429 && i < retries - 1) {
-                            const retryAfter = r.headers.get('Retry-After');
-                            let wait;
-                            if (retryAfter) {
-                                wait = isNaN(Number(retryAfter))
-                                    ? Math.max(0, new Date(retryAfter).getTime() - Date.now())
-                                    : parseFloat(retryAfter) * 1000;
-                                if (wait > 10 * 60 * 1000) wait = 60 * 1000;
-                                if (wait < 1000) wait = 1000;
-                            } else {
-                                wait = Math.pow(2, i) * 1000;
-                            }
-                            console.warn(`429! Waiting ${wait}ms on retry ${i + 1}/${retries}`);
-                            await new Promise(res => setTimeout(res, wait));
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        if (response.status === 429 && i < retries - 1) { // Rate limit
+                            const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                            await new Promise(resolve => setTimeout(resolve, delay));
                             continue;
                         }
-                        throw new Error(`API Error: ${r.status}`);
+                        throw new Error(`API Error: ${response.status} ${response.statusText}`);
                     }
-                    return r;
-                } catch (e) {
-                    if (i === retries - 1) throw e;
-                    let wait = Math.pow(2, i) * 1000;
-                    await new Promise(res => setTimeout(res, wait));
+                    return response;
+                } catch (error) {
+                    if (i === retries - 1) {
+                        console.error("Fetch failed after all retries:", error);
+                        throw error;
+                    }
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
         }
 
-        function updateStatus(msg, type = 'info') {
-            const el = document.getElementById('status-message');
-            el.innerHTML = (type === 'process' ? SPINNER + ' ' : '') + msg;
-            el.className = 'text-center text-lg font-medium py-4 rounded-xl shadow-md mt-4';
-            el.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-yellow-100', 'text-yellow-800', 'bg-blue-100', 'text-blue-800');
-            if (type === 'error') el.classList.add('bg-red-100', 'text-red-800');
-            else if (type === 'success') el.classList.add('bg-green-100', 'text-green-800');
-            else if (type === 'process') el.classList.add('bg-blue-100', 'text-blue-800');
-            else el.classList.add('bg-yellow-100', 'text-yellow-800');
-            el.classList.remove('hidden');
-        }
-
-        async function callGemini(sys, usr, schema = null) {
-            const key = getKey();
-            const payload = {
-                contents: [{ parts: [{ text: usr }] }],
-                systemInstruction: { parts: [{ text: sys }] }
-            };
-            if (schema) payload.generationConfig = { responseMimeType: "application/json", responseSchema: schema };
-
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${key}`;
-            const r = await fetchRetry(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            const data = await r.json();
-            if (data.error) throw new Error(data.error.message);
-            const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!content) throw new Error("Empty response");
-            return schema ? JSON.parse(content) : content;
-        }
-
-        async function generateCriteria(question) {
-            setLoading('generate-button', true);
-            updateStatus('Generating criteria...', 'process');
+        /**
+         * Helper to update the status message box with process feedback.
+         */
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status-message');
             
+            const isProcessing = type === 'process' || message.includes('Working');
+
+            statusEl.innerHTML = isProcessing ? `<span class="flex items-center justify-center">${SPINNER_HTML} ${message}</span>` : message;
+            
+            statusEl.className = 'text-center text-lg font-medium py-4 rounded-xl shadow-md mt-4';
+            statusEl.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-yellow-100', 'text-yellow-800', 'bg-blue-100', 'text-blue-800', 'flex', 'items-center', 'justify-center');
+
+            if (type === 'error') {
+                statusEl.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'success') {
+                statusEl.classList.add('bg-green-100', 'text-green-800');
+            } else if (isProcessing) {
+                statusEl.classList.add('bg-blue-100', 'text-blue-800');
+            } else { // info
+                statusEl.classList.add('bg-yellow-100', 'text-yellow-800');
+            }
+            statusEl.classList.remove('hidden');
+        }
+
+        // --- LLM Full Text Review Function ---
+        
+        /**
+         * Step 5.1: Review a single article's full text against criteria.
+         */
+        async function reviewFullText(article, criteria, fullText) {
+            // Truncate full text to prevent exceeding context window (using first 5000 chars)
+            const truncatedText = fullText.substring(0, 5000); 
+
+            const systemPrompt = `You are a systematic review expert performing a final full-text screening. Analyze the provided FULL TEXT against the strict Inclusion/Exclusion criteria. Base your decision ONLY on the full text and criteria. Your output MUST be a single JSON object.`;
+
+            const userQuery = `
+                Article PMID: ${article.PMID}
+                Research Question: ${document.getElementById('research-question').value.trim()}
+                
+                CRITERIA: 
+                Inclusion: ${criteria.Inclusion}
+                Exclusion: ${criteria.Exclusion}
+
+                FULL TEXT (Excerpt):
+                ---
+                ${truncatedText}
+                ---
+
+                Original Abstract Decision: ${article.Decision} (${article.Reasoning})
+                
+                Based on the FULL TEXT, output the JSON object with the following properties:
+                1. FinalDecision: 'FINAL_INCLUDE' or 'FINAL_EXCLUDE'.
+                2. FinalReasoning: A concise 2-3 sentence justification for your FinalDecision based *only* on the full text.
+            `;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "FinalDecision": { "type": "STRING", "enum": ["FINAL_INCLUDE", "FINAL_EXCLUDE"] },
+                            "FinalReasoning": { "type": "STRING" }
+                        }
+                    }
+                }
+            };
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${apiKey}`;
+
             try {
-                const result = await callGemini(
-                    'You are a systematic review expert. Generate inclusion/exclusion criteria and a PubMed query.',
-                    `Research Question: ${question}\n\nOutput JSON with: Inclusion, Exclusion, SuggestedPubmedQuery`,
-                    { type: "OBJECT", properties: { Inclusion: {type: "STRING"}, Exclusion: {type: "STRING"}, SuggestedPubmedQuery: {type: "STRING"} }, required: ["Inclusion", "Exclusion", "SuggestedPubmedQuery"] }
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (jsonText) {
+                    const llmResult = JSON.parse(jsonText);
+                    return {
+                        FinalDecision: llmResult.FinalDecision,
+                        FinalReasoning: llmResult.FinalReasoning,
+                    };
+                } else {
+                    throw new Error("LLM returned an empty or unparsable response.");
+                }
+            } catch (error) {
+                console.error("LLM full text review error for PMID", article.PMID, error);
+                return {
+                    FinalDecision: 'ERROR',
+                    FinalReasoning: 'LLM failed to process full text.',
+                };
+            }
+        }
+        
+        /**
+         * Step 5: Initiates the Full Text Review process.
+         */
+        window.startFullTextReview = async () => {
+            setButtonLoading('start-full-text-review-button', true);
+            document.getElementById('full-text-review-panel').classList.remove('hidden');
+            document.getElementById('final-review-list').innerHTML = `<p class="text-center text-gray-500 italic flex items-center justify-center">${SPINNER_HTML} Preparing articles for review...</p>`;
+            document.getElementById('report-panel').classList.add('hidden');
+            document.getElementById('modification-panel').classList.add('hidden');
+            document.getElementById('prisma-panel').classList.add('hidden');
+
+            // 1. Identify Included Articles from Step 3
+            const articlesToReview = appState.articles.filter(a => (a.Decision === 'INCLUDE' && !a.Override) || a.Override);
+
+            if (articlesToReview.length === 0) {
+                 updateStatus('No articles were included in the abstract phase. Cannot proceed with full text review.', 'info');
+                 setButtonLoading('start-full-text-review-button', false);
+                 return;
+            }
+            if (Object.keys(appState.uploadedTexts).length === 0) {
+                 updateStatus('Please upload full text documents in Step 4 before starting the review, or wait for automatic retrieval to finish.', 'error');
+                 setButtonLoading('start-full-text-review-button', false);
+                 return;
+            }
+
+            // 2. Pair Articles with Uploaded Texts and create the review queue
+            const reviewQueue = articlesToReview.map(article => {
+                // Priority 1: Check if the article was auto-retrieved (FullTextFileName is set)
+                if (article.FullTextFileName && appState.uploadedTexts[article.FullTextFileName]) {
+                    return {
+                        article,
+                        fullText: appState.uploadedTexts[article.FullTextFileName],
+                        fileName: article.FullTextFileName
+                    };
+                }
+
+                // Priority 2: Check for a manually uploaded file matching the PMID
+                const matchingFileName = Object.keys(appState.uploadedTexts).find(filename => 
+                    filename.includes(article.PMID)
                 );
-                setLoading('generate-button', false);
-                updateStatus('Criteria generated!', 'success');
-                return result;
-            } catch (e) {
-                setLoading('generate-button', false);
-                updateStatus('Error: ' + e.message, 'error');
+                
+                if (matchingFileName) {
+                    return {
+                        article,
+                        fullText: appState.uploadedTexts[matchingFileName],
+                        fileName: matchingFileName
+                    };
+                }
+                return null;
+            }).filter(item => item !== null);
+            
+            if (reviewQueue.length === 0) {
+                updateStatus('No full texts found for included articles, either automatically or manually uploaded. Ensure PMIDs are in the filenames of manual uploads.', 'error');
+                document.getElementById('final-review-list').innerHTML = `<p class="text-center text-red-500 font-medium">No full texts found for included articles. Review your uploads.</p>`;
+                setButtonLoading('start-full-text-review-button', false);
+                return;
+            }
+
+
+            // 3. Run LLM review for the queue
+            updateStatus(`**Starting Full Text Review for ${reviewQueue.length} articles.** This will analyze the documents against the criteria.`, 'process');
+            
+            const reviewPromises = reviewQueue.map(async (queueItem) => {
+                const llmResult = await reviewFullText(queueItem.article, appState.criteria, queueItem.fullText);
+                
+                // Update the original article in appState
+                const index = appState.articles.findIndex(a => a.PMID === queueItem.article.PMID);
+                if (index !== -1) {
+                    appState.articles[index].FinalDecision = llmResult.FinalDecision;
+                    appState.articles[index].FinalReasoning = llmResult.FinalReasoning;
+                    // If it was manual upload, set the filename for consistency
+                    if (!appState.articles[index].FullTextFileName) {
+                        appState.articles[index].FullTextFileName = queueItem.fileName;
+                    }
+                }
+            });
+
+            // Wait for all LLM calls to complete
+            await Promise.all(reviewPromises);
+            
+            // 4. Render Final Results and show next panels
+            renderFinalReviewResults();
+            updateStatus(`Full Text Review complete! ${reviewQueue.length} articles analyzed.`, 'success');
+            setButtonLoading('start-full-text-review-button', false);
+            
+            // Show Step 6, 7 and 8 now
+            document.getElementById('report-panel').classList.remove('hidden');
+            document.getElementById('prisma-panel').classList.remove('hidden');
+        }
+
+
+        // --- PMC Retrieval Functions ---
+
+        /**
+         * Fetches the full text content from PMC using the PMCID.
+         */
+        async function fetchFullTextFromPMC(pmcid) {
+            // Using retmode=text and rettype=full should return a clean text dump.
+            const url = `${PUBMED_BASE_URL}efetch.fcgi?db=pmc&id=${pmcid}&retmode=text&rettype=full`;
+
+            try {
+                const response = await fetchWithRetry(url);
+                const fullText = await response.text();
+                
+                // Check for common error messages in the returned text
+                if (fullText.includes("cannot be found") || fullText.includes("error")) {
+                    console.warn(`PMC Retrieval failed for ${pmcid}: Error in returned text.`);
+                    return null;
+                }
+                
+                // Content will often start with the title and abstract, which is fine.
+                return fullText;
+
+            } catch (error) {
+                console.error(`Error fetching full text for PMCID ${pmcid}:`, error);
                 return null;
             }
         }
-
-        async function fetchPubMed(query, dateLimit) {
-            updateStatus('Searching PubMed...', 'process');
-            let url = `${PUBMED_BASE}esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=100000&retmode=json`;
-            if (dateLimit) {
-                const yr = new Date().getFullYear();
-                url += `&mindate=${dateLimit}&maxdate=${yr}&datetype=pdat`;
+        
+        /**
+         * Attempts to automatically retrieve full text for all included articles with a PMCID.
+         */
+        async function attemptFullTextRetrieval() {
+            // 1. Identify Included Articles with a PMCID
+            const includedArticles = appState.articles.filter(a => 
+                ((a.Decision === 'INCLUDE' && !a.Override) || a.Override) && a.PMCID && !a.FullTextFileName
+            );
+            
+            if (includedArticles.length === 0) {
+                document.getElementById('retrieval-status-message').innerHTML = `No open-access articles (with PMC IDs) were identified among the articles included by abstract.`;
+                document.getElementById('retrieval-status-message').classList.remove('hidden', 'bg-yellow-50', 'text-yellow-800');
+                document.getElementById('retrieval-status-message').classList.add('bg-blue-50', 'text-blue-800');
+                return;
             }
-            const r = await fetchRetry(url);
-            const data = await r.json();
-            const uids = data.esearchresult?.idlist || [];
-            updateStatus(`Found ${uids.length} articles`, 'process');
-            return uids;
+            
+            document.getElementById('retrieval-status-message').innerHTML = `<span class="flex items-center justify-center">${SPINNER_HTML} Attempting automatic full text retrieval for **${includedArticles.length}** articles via PMC...</span>`;
+            document.getElementById('retrieval-status-message').classList.remove('hidden', 'bg-blue-50', 'text-blue-800');
+            document.getElementById('retrieval-status-message').classList.add('bg-yellow-50', 'text-yellow-800');
+
+
+            const retrievalPromises = includedArticles.map(async (article) => {
+                const fullText = await fetchFullTextFromPMC(article.PMCID);
+                if (fullText) {
+                    // Store content in uploadedTexts using a standard filename format
+                    const fileName = `AUTO_PMC_${article.PMCID}_(PMID_${article.PMID}).txt`;
+                    appState.uploadedTexts[fileName] = fullText;
+                    
+                    // Mark article as auto-retrieved in the main state
+                    const index = appState.articles.findIndex(a => a.PMID === article.PMID);
+                    if (index !== -1) {
+                        appState.articles[index].FullTextFileName = fileName;
+                    }
+                    return true;
+                }
+                return false;
+            });
+
+            const results = await Promise.all(retrievalPromises);
+            const successCount = results.filter(r => r).length;
+            
+            document.getElementById('retrieval-status-message').innerHTML = `**PMC retrieval finished:** Successfully downloaded full text for **${successCount}** articles. Please manually upload the remaining paywalled articles.`;
+            document.getElementById('retrieval-status-message').classList.remove('bg-yellow-50', 'text-yellow-800');
+            document.getElementById('retrieval-status-message').classList.add('bg-green-50', 'text-green-800');
+
+            renderFullTextUploadStatus(); // Update the file list UI
+        }
+
+
+        // --- PubMed API Functions ---
+
+        async function generateCriteriaAndQuery(researchQuestion) {
+            setButtonLoading('generate-button', true);
+            updateStatus('Analyzing research question and drafting criteria/query...', 'process');
+
+            const systemPrompt = `You are a systematic review methodologist. Analyze the research question provided by the user. You must output the strict Inclusion and Exclusion criteria, and generate a technical, optimized search query suitable for the PubMed ESearch API. Your output MUST be a single JSON object.`;
+
+            const userQuery = `
+                Research Question: ${researchQuestion}
+
+                Output the JSON object with the following properties:
+                1. Inclusion: Strict criteria for including an article, based on PICO elements if applicable.
+                2. Exclusion: Strict criteria for excluding an article (e.g., study type, language, publication type).
+                3. SuggestedPubmedQuery: A refined, technical search query string using boolean operators (AND, OR, NOT) and field tags (like [tiab]) suitable for the PubMed ESearch API.
+            `;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "Inclusion": { "type": "STRING" },
+                            "Exclusion": { "type": "STRING" },
+                            "SuggestedPubmedQuery": { "type": "STRING" }
+                        }
+                    }
+                }
+            };
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (jsonText) {
+                    const llmResult = JSON.parse(jsonText);
+                    setButtonLoading('generate-button', false);
+                    updateStatus('Criteria and PubMed Query successfully generated. Please review them below before screening.', 'success');
+                    return llmResult;
+                } else {
+                    throw new Error("LLM returned an empty or unparsable response.");
+                }
+            } catch (error) {
+                console.error("LLM criteria generation error:", error);
+                setButtonLoading('generate-button', false);
+                updateStatus(`Criteria generation failed: ${error.message}. Please try again or refine your question.`, 'error');
+                return null;
+            }
+        }
+        
+        async function fetchPubmedUids(query, dateLimit) {
+            updateStatus(`Searching PubMed for "${query}"...`, 'process');
+            
+            let url = `${PUBMED_BASE_URL}esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=100000&retmode=json`;
+            
+            if (dateLimit && !isNaN(parseInt(dateLimit))) {
+                const currentYear = new Date().getFullYear();
+                const startYear = parseInt(dateLimit);
+                url += `&mindate=${startYear}&maxdate=${currentYear}&datetype=pdat`;
+                
+                updateStatus(`Searching PubMed for "${query}" since ${startYear}...`, 'process');
+            }
+
+            const response = await fetchWithRetry(url);
+            const data = await response.json();
+            
+            if (data.esearchresult && data.esearchresult.idlist) {
+                const uids = data.esearchresult.idlist;
+                updateStatus(`Found ${uids.length} articles. Retrieving abstracts...`, 'process');
+                return uids;
+            } else {
+                const errorMessage = data.esearchresult?.error || 'PubMed search returned an unexpected result.';
+                throw new Error(errorMessage);
+            }
         }
 
         async function fetchAbstracts(uids) {
-            if (!uids.length) return [];
-            const all = [];
-            for (let i = 0; i < uids.length; i += 500) {
-                if (cancelOp) break;
-                const chunk = uids.slice(i, i + 500);
-                updateStatus(`Fetching abstracts ${i + 1}-${Math.min(i + 500, uids.length)}...`, 'process');
-                const url = `${PUBMED_BASE}efetch.fcgi?db=pubmed&id=${chunk.join(',')}&retmode=xml&rettype=abstract`;
-                const r = await fetchRetry(url);
-                const txt = await r.text();
+            if (uids.length === 0) return [];
+            
+            const chunkSize = 500;
+            const allArticles = [];
+
+            for (let i = 0; i < uids.length; i += chunkSize) {
+                const chunk = uids.slice(i, i + chunkSize);
+                const uidString = chunk.join(',');
+                
+                updateStatus(`Retrieving abstracts for chunk ${Math.floor(i/chunkSize) + 1} of ${Math.ceil(uids.length / chunkSize)}...`, 'process');
+
+                const url = `${PUBMED_BASE_URL}efetch.fcgi?db=pubmed&id=${uidString}&retmode=xml&rettype=abstract`;
+
+                const response = await fetchWithRetry(url);
+                const text = await response.text();
+
                 const parser = new DOMParser();
-                const xml = parser.parseFromString(txt, "application/xml");
-                xml.querySelectorAll('PubmedArticle').forEach(art => {
-                    const pmid = art.querySelector('PMID')?.textContent;
-                    const title = art.querySelector('ArticleTitle')?.textContent;
-                    const abs = art.querySelector('AbstractText')?.textContent;
+                const xmlDoc = parser.parseFromString(text, "application/xml");
+
+                xmlDoc.querySelectorAll('PubmedArticle').forEach(articleEl => {
+                    const pmidEl = articleEl.querySelector('PMID');
+                    const titleEl = articleEl.querySelector('ArticleTitle');
+                    const abstractEl = articleEl.querySelector('AbstractText');
+                    
                     let pmcid = null;
-                    art.querySelectorAll('ArticleId').forEach(id => {
-                        if (id.getAttribute('IdType') === 'pmc') pmcid = id.textContent;
+                    // Try to find the PMC ID for auto-retrieval later
+                    articleEl.querySelectorAll('ArticleId').forEach(id => {
+                        if (id.getAttribute('IdType') === 'pmc') {
+                            pmcid = id.textContent;
+                        }
                     });
-                    if (pmid && title) {
-                        all.push({ PMID: pmid, Title: title, Abstract: abs || 'No abstract', PMCID: pmcid, Decision: 'PENDING', Category: 'PENDING', Reasoning: 'Pending', Override: false, FullTextFileName: null });
+
+                    if (pmidEl && titleEl) {
+                        allArticles.push({
+                            PMID: pmidEl.textContent,
+                            Title: titleEl.textContent || 'No Title Found',
+                            Abstract: abstractEl ? abstractEl.textContent : 'No Abstract Available.',
+                            PMCID: pmcid, // Store PMC ID for retrieval
+                            Decision: 'PENDING',
+                            Category: 'PENDING',
+                            Reasoning: 'Awaiting LLM review.',
+                            Override: false, // Human override flag
+                            FullTextFileName: null, // To be set if auto-retrieved
+                        });
                     }
                 });
             }
-            return all;
+            return allArticles;
         }
 
-        async function screenArticle(art, crit) {
-            try {
-                const result = await callGemini(
-                    'You are a systematic review expert. Screen this article.',
-                    `PMID: ${art.PMID}\nTitle: ${art.Title}\nAbstract: ${art.Abstract}\n\nInclusion: ${crit.Inclusion}\nExclusion: ${crit.Exclusion}\n\nOutput JSON with: Decision (INCLUDE/EXCLUDE), Category, Reasoning`,
-                    { type: "OBJECT", properties: { Decision: {type: "STRING", enum: ["INCLUDE", "EXCLUDE"]}, Category: {type: "STRING"}, Reasoning: {type: "STRING"} }, required: ["Decision", "Category", "Reasoning"] }
-                );
-                return { ...result, Override: false };
-            } catch (e) {
-                return { Decision: 'ERROR', Category: 'ERROR', Reasoning: e.message, Override: false };
-            }
-        }
+        async function screenArticle(article, criteria) {
+            const systemPrompt = `You are a systematic review expert. Analyze the provided article's Title and Abstract against the following strict Inclusion/Exclusion criteria. Your output MUST be a single JSON object.`;
 
-        async function reviewFullText(art, crit, txt) {
-            const trunc = txt.substring(0, MAX_TEXT);
-            try {
-                const result = await callGemini(
-                    'Review this full text against criteria.',
-                    `PMID: ${art.PMID}\nCriteria:\nInclusion: ${crit.Inclusion}\nExclusion: ${crit.Exclusion}\n\nFull Text:\n${trunc}\n\nOutput JSON with: FinalDecision (FINAL_INCLUDE/FINAL_EXCLUDE), FinalReasoning`,
-                    { type: "OBJECT", properties: { FinalDecision: {type: "STRING", enum: ["FINAL_INCLUDE", "FINAL_EXCLUDE"]}, FinalReasoning: {type: "STRING"} }, required: ["FinalDecision", "FinalReasoning"] }
-                );
-                return result;
-            } catch (e) {
-                return { FinalDecision: 'ERROR', FinalReasoning: e.message };
-            }
-        }
-
-        async function fetchPMC(pmcid) {
-            try {
-                const url = `${PUBMED_BASE}efetch.fcgi?db=pmc&id=${pmcid}&retmode=text&rettype=full`;
-                const r = await fetchRetry(url);
-                const txt = await r.text();
-                if (txt.includes("cannot be found") || txt.length < 100) return null;
-                return txt;
-            } catch (e) {
-                return null;
-            }
-        }
-
-        async function autoRetrieve() {
-            const arts = state.articles.filter(a => ((a.Decision === 'INCLUDE' && !a.Override) || a.Override) && a.PMCID && !a.FullTextFileName);
-            if (!arts.length) {
-                document.getElementById('retrieval-status-message').innerHTML = 'No PMC articles found';
-                document.getElementById('retrieval-status-message').classList.remove('hidden');
-                return;
-            }
-            
-            document.getElementById('retrieval-status-message').innerHTML = SPINNER + ` Retrieving ${arts.length} articles...`;
-            document.getElementById('retrieval-status-message').classList.remove('hidden');
-            
-            let success = 0;
-            for (let i = 0; i < arts.length; i++) {
-                if (cancelOp) break;
-                updateProgress(i + 1, arts.length, 'Retrieving');
-                const txt = await fetchPMC(arts[i].PMCID);
-                if (txt) {
-                    const fn = `AUTO_PMC_${arts[i].PMCID}_(PMID_${arts[i].PMID}).txt`;
-                    state.uploadedTexts[fn] = txt;
-                    const idx = state.articles.findIndex(a => a.PMID === arts[i].PMID);
-                    if (idx !== -1) state.articles[idx].FullTextFileName = fn;
-                    success++;
-                }
-                await new Promise(r => setTimeout(r, 500));
-            }
-            
-            updateProgress(0, 0);
-            document.getElementById('retrieval-status-message').innerHTML = `Retrieved ${success} articles`;
-            renderFiles();
-        }
-
-        window.startFullTextReview = async () => {
-            setLoading('start-full-text-review-button', true);
-            document.getElementById('full-text-review-panel').classList.remove('hidden');
-            cancelOp = false;
-            
-            const toReview = state.articles.filter(a => (a.Decision === 'INCLUDE' && !a.Override) || a.Override);
-            const queue = toReview.map(a => {
-                if (a.FullTextFileName && state.uploadedTexts[a.FullTextFileName]) {
-                    return { article: a, fullText: state.uploadedTexts[a.FullTextFileName], fileName: a.FullTextFileName };
-                }
-                const fn = Object.keys(state.uploadedTexts).find(f => f.includes(a.PMID));
-                if (fn) return { article: a, fullText: state.uploadedTexts[fn], fileName: fn };
-                return null;
-            }).filter(x => x);
-            
-            if (!queue.length) {
-                updateStatus('No full texts found', 'error');
-                setLoading('start-full-text-review-button', false);
-                return;
-            }
-            
-            for (let i = 0; i < queue.length; i++) {
-                if (cancelOp) break;
-                updateProgress(i + 1, queue.length, 'Reviewing');
-                const res = await reviewFullText(queue[i].article, state.criteria, queue[i].fullText);
-                const idx = state.articles.findIndex(a => a.PMID === queue[i].article.PMID);
-                if (idx !== -1) {
-                    state.articles[idx].FinalDecision = res.FinalDecision;
-                    state.articles[idx].FinalReasoning = res.FinalReasoning;
-                    if (!state.articles[idx].FullTextFileName) state.articles[idx].FullTextFileName = queue[i].fileName;
-                }
-                await new Promise(r => setTimeout(r, 1000));
-            }
-            
-            updateProgress(0, 0);
-            renderFinal();
-            if (!cancelOp) {
-                updateStatus('Full text review complete', 'success');
-                document.getElementById('report-panel').classList.remove('hidden');
-                document.getElementById('prisma-panel').classList.remove('hidden');
-            }
-            setLoading('start-full-text-review-button', false);
-        };
-
-        document.getElementById('generate-report-button').addEventListener('click', async () => {
-            setLoading('generate-report-button', true);
-            const out = document.getElementById('slr-draft-output');
-            out.innerHTML = 'Generating...';
-            document.getElementById('modification-panel').classList.add('hidden');
-            
-            const arts = state.articles.filter(a => {
-                const fin = a.FinalDecision && a.FinalDecision === 'FINAL_INCLUDE';
-                const abs = !a.FinalDecision && ((a.Decision === 'INCLUDE' && !a.Override) || a.Override);
-                return fin || abs;
-            });
-            
-            if (!arts.length) {
-                out.innerHTML = 'No articles included';
-                setLoading('generate-report-button', false);
-                return;
-            }
-            
-            const summary = arts.map(a => `PMID: ${a.PMID}\nTitle: ${a.Title}\nAbstract: ${a.Abstract.substring(0, 300)}...\nCategory: ${a.Category}`).join('\n---\n');
-            const q = document.getElementById('research-question').value.trim();
-            const inst = document.getElementById('drafting-instructions').value.trim();
-            
-            try {
-                updateStatus('Generating report...', 'process');
-                const report = await callGemini(
-                    'Generate a systematic review draft with inline citations (PMID: X) and a References section.',
-                    `Research: ${q}\nArticles: ${arts.length}\n\n${summary}\n\n${inst ? 'Instructions: ' + inst : ''}`
-                );
+            const userQuery = `
+                Article PMID: ${article.PMID}
+                Title: ${article.Title}
+                Abstract: ${article.Abstract}
                 
-                state.currentDraft = report;
-                out.innerHTML = report.replace(/^#{1}\s*(.*)$/gm, '<h1>$1</h1>').replace(/^#{2}\s*(.*)$/gm, '<h2>$1</h2>').replace(/^#{3}\s*(.*)$/gm, '<h3>$1</h3>').replace(/\n/g, '<br>');
-                document.getElementById('modification-panel').classList.remove('hidden');
-                updateStatus('Report generated', 'success');
-            } catch (e) {
-                updateStatus('Error: ' + e.message, 'error');
-            } finally {
-                setLoading('generate-report-button', false);
-            }
-        });
+                CRITERIA: 
+                Inclusion: ${criteria.Inclusion}
+                Exclusion: ${criteria.Exclusion}
 
-        document.getElementById('refine-report-button').addEventListener('click', async () => {
-            setLoading('refine-report-button', true);
-            const req = document.getElementById('modification-request').value.trim();
-            if (!state.currentDraft || !req) {
-                updateStatus('Enter a modification request', 'error');
-                setLoading('refine-report-button', false);
-                return;
-            }
-            
-            try {
-                updateStatus('Refining...', 'process');
-                const revised = await callGemini(
-                    'Revise this report maintaining citations.',
-                    `Draft:\n${state.currentDraft}\n\nRequest: ${req}`
-                );
-                
-                state.currentDraft = revised;
-                document.getElementById('slr-draft-output').innerHTML = revised.replace(/^#{1}\s*(.*)$/gm, '<h1>$1</h1>').replace(/^#{2}\s*(.*)$/gm, '<h2>$1</h2>').replace(/^#{3}\s*(.*)$/gm, '<h3>$1</h3>').replace(/\n/g, '<br>');
-                updateStatus('Draft refined', 'success');
-            } catch (e) {
-                updateStatus('Error: ' + e.message, 'error');
-            } finally {
-                setLoading('refine-report-button', false);
-            }
-        });
-
-        window.generatePrismaDiagram = () => {
-            const out = document.getElementById('prisma-output');
-            const total = state.articles.length;
-            const incAbs = state.articles.filter(a => (a.Decision === 'INCLUDE' && !a.Override) || a.Override).length;
-            const excAbs = state.articles.filter(a => a.Decision === 'EXCLUDE' && !a.Override).length;
-            const reviewed = state.articles.filter(a => a.FinalDecision).length;
-            const incFinal = state.articles.filter(a => a.FinalDecision === 'FINAL_INCLUDE').length;
-            const excFinal = state.articles.filter(a => a.FinalDecision === 'FINAL_EXCLUDE').length;
-            const notRev = incAbs - reviewed;
-            
-            const svg = `
-                <svg width="100%" height="700" viewBox="0 0 800 700" xmlns="http://www.w3.org/2000/svg" style="font-family: 'Inter', sans-serif;">
-                    <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" /></marker></defs>
-                    <rect x="260" y="30" width="280" height="70" rx="8" fill="#FFF" stroke="#2563EB" stroke-width="2"/>
-                    <text x="400" y="58" font-weight="bold" fill="#333" font-size="14" text-anchor="middle">Identification</text>
-                    <text x="400" y="78" fill="#555" font-size="12" text-anchor="middle">Records identified (${total})</text>
-                    <line x1="400" y1="100" x2="400" y2="150" stroke="#6b7280" stroke-width="2" marker-end="url(#arrowhead)"/>
-                    
-                    <rect x="260" y="150" width="280" height="70" rx="8" fill="#FFF" stroke="#2563EB" stroke-width="2"/>
-                    <text x="400" y="178" font-weight="bold" fill="#333" font-size="14" text-anchor="middle">Screening</text>
-                    <text x="400" y="198" fill="#555" font-size="12" text-anchor="middle">Records screened (${total})</text>
-                    <line x="400" y1="220" x2="400" y2="270" stroke="#6b7280" stroke-width="2" marker-end="url(#arrowhead)"/>
-                    
-                    <rect x="580" y="160" width="180" height="50" rx="8" fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
-                    <text x="670" y="190" fill="#EF4444" font-size="12" text-anchor="middle">Excluded (${excAbs})</text>
-                    <line x1="540" y1="185" x2="580" y2="185" stroke="#EF4444" stroke-width="2"/>
-                    
-                    <rect x="260" y="270" width="280" height="70" rx="8" fill="#FFF" stroke="#9333EA" stroke-width="2"/>
-                    <text x="400" y="298" font-weight="bold" fill="#333" font-size="14" text-anchor="middle">Eligibility</text>
-                    <text x="400" y="318" fill="#555" font-size="12" text-anchor="middle">Full-text assessed (${incAbs})</text>
-                    <line x1="400" y1="340" x2="400" y2="390" stroke="#6b7280" stroke-width="2" marker-end="url(#arrowhead)"/>
-                    
-                    <rect x="580" y="280" width="180" height="50" rx="8" fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
-                    <text x="670" y="310" fill="#EF4444" font-size="12" text-anchor="middle">Excluded full-text (${excFinal})</text>
-                    <line x1="540" y1="305" x2="580" y2="305" stroke="#EF4444" stroke-width="2"/>
-                    
-                    <rect x="260" y="390" width="280" height="70" rx="8" fill="#FFF" stroke="#059669" stroke-width="2"/>
-                    <text x="400" y="418" font-weight="bold" fill="#333" font-size="14" text-anchor="middle">Included</text>
-                    <text x="400" y="438" fill="#555" font-size="12" text-anchor="middle">Studies included (${incFinal})</text>
-                </svg>
+                Output the JSON object with the following properties:
+                1. Decision: 'INCLUDE' or 'EXCLUDE'.
+                2. Category: A single category label (e.g., 'Clinical Application', 'Medical Education', 'Ethical Review', 'Other').
+                3. Reasoning: A concise 1-2 sentence justification for your Decision based *only* on the criteria and abstract.
             `;
-            out.innerHTML = svg;
-            updateStatus('PRISMA diagram generated', 'success');
-        };
 
-        function renderCard(a) {
-            const isInc = (a.Decision === 'INCLUDE' && !a.Override) || a.Override;
-            const cls = isInc ? (a.Override ? 'bg-yellow-100 text-yellow-800 border-yellow-300' : 'bg-green-100 text-green-800 border-green-300') : 'bg-red-100 text-red-800 border-red-300';
-            const status = isInc ? (a.Override ? 'INCLUDED (Override)' : 'INCLUDED (AI)') : (a.Decision === 'EXCLUDE' ? 'EXCLUDED (AI)' : 'ERROR');
-            const btn = !isInc && a.Decision === 'EXCLUDE' ? `<button onclick="window.handleOverride('${a.PMID}')" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg">Override &amp; Include</button>` : '';
-            const pmc = a.PMCID ? `<span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">PMC ${a.PMCID.replace('PMC', '')}</span>` : '';
-            
-            return `
-                <div class="article-card p-4 rounded-xl border-t-4 ${cls}">
-                    <a href="https://pubmed.ncbi.nlm.nih.gov/${a.PMID}/" target="_blank" class="text-lg font-bold text-blue-800 hover:underline block">${a.Title}</a>
-                    <div class="flex gap-2 items-center mb-2">
-                        <p class="text-xs text-gray-500">PMID: ${a.PMID} | ${a.Category}</p>
-                        ${pmc}
-                    </div>
-                    <div class="my-2 p-2 rounded-lg text-sm font-medium ${cls} border">Status: ${status}</div>
-                    <p class="text-sm text-gray-700 font-semibold mt-3">AI Reasoning:</p>
-                    <p class="text-sm text-gray-600 italic mb-3">"${a.Reasoning}"</p>
-                    <details class="text-xs text-gray-500 cursor-pointer mt-2">
-                        <summary>View Abstract</summary>
-                        <p class="mt-1 p-2 bg-gray-50 rounded">${a.Abstract}</p>
-                    </details>
-                    ${btn}
-                </div>
-            `;
-        }
-
-        function renderFinalCard(a) {
-            const isInc = a.FinalDecision === 'FINAL_INCLUDE';
-            const cls = isInc ? 'bg-purple-100 text-purple-800 border-purple-300' : 'bg-red-100 text-red-800 border-red-300';
-            const status = isInc ? 'FINAL INCLUDED' : (a.FinalDecision === 'FINAL_EXCLUDE' ? 'FINAL EXCLUDED' : 'ERROR');
-            
-            return `
-                <div class="article-card p-4 rounded-xl border-t-4 ${cls}">
-                    <a href="https://pubmed.ncbi.nlm.nih.gov/${a.PMID}/" target="_blank" class="text-lg font-bold text-blue-800 hover:underline block">${a.Title}</a>
-                    <p class="text-xs text-gray-500 mb-2">PMID: ${a.PMID} | Source: ${a.FullTextFileName?.startsWith('AUTO_') ? 'Auto-Retrieved' : 'Manual'}</p>
-                    <div class="my-2 p-2 rounded-lg text-sm font-medium ${cls} border">Status: ${status}</div>
-                    <p class="text-sm text-gray-700 font-semibold mt-3">Final Reasoning:</p>
-                    <p class="text-sm text-gray-600 italic">"${a.FinalReasoning}"</p>
-                </div>
-            `;
-        }
-
-        function renderResults() {
-            const inc = state.articles.filter(a => (a.Decision === 'INCLUDE' && !a.Override) || a.Override);
-            const exc = state.articles.filter(a => a.Decision === 'EXCLUDE' && !a.Override);
-            document.getElementById('included-list').innerHTML = inc.map(renderCard).join('');
-            document.getElementById('excluded-list').innerHTML = exc.map(renderCard).join('');
-            document.getElementById('included-count').textContent = inc.length;
-            document.getElementById('excluded-count').textContent = exc.length;
-            document.getElementById('results-panel').classList.remove('hidden');
-            
-            if (inc.length > 0) {
-                document.getElementById('upload-panel').classList.remove('hidden');
-                autoRetrieve();
-            }
-        }
-
-        function renderFinal() {
-            const rev = state.articles.filter(a => a.FinalDecision);
-            document.getElementById('final-review-list').innerHTML = rev.length ? rev.map(renderFinalCard).join('') : '<p class="text-center text-gray-500 italic">No articles reviewed</p>';
-        }
-
-        function renderFiles() {
-            const cont = document.getElementById('fileListContainer');
-            const msg = document.getElementById('initialMessage');
-            const btn = document.getElementById('start-full-text-review-button');
-            const files = Object.keys(state.uploadedTexts);
-            
-            if (!files.length) {
-                cont.innerHTML = '';
-                msg.style.display = 'block';
-                btn.classList.add('hidden');
-                return;
-            }
-            
-            cont.innerHTML = '';
-            msg.style.display = 'none';
-            files.sort((a, b) => (a.startsWith('AUTO_') === b.startsWith('AUTO_')) ? 0 : a.startsWith('AUTO_') ? -1 : 1);
-            
-            files.forEach(fn => {
-                const txt = state.uploadedTexts[fn];
-                const isAuto = fn.startsWith('AUTO_');
-                const prev = txt.substring(0, 1000) + (txt.length > 1000 ? '...' : '');
-                const esc = JSON.stringify(txt);
-                
-                cont.innerHTML += `
-                    <div class="p-4 rounded-xl shadow-md border-l-4 ${isAuto ? 'border-green-500 bg-green-50' : 'border-purple-500 bg-white'}">
-                        <div class="flex items-center justify-between mb-3 border-b pb-2">
-                            <h3 class="text-lg font-bold text-gray-700 truncate mr-4">${fn}</h3>
-                            <span class="text-xs font-semibold ${isAuto ? 'text-green-600' : 'text-purple-600'}">${isAuto ? 'Auto-Retrieved' : 'Manual'}</span>
-                        </div>
-                        <div class="bg-gray-50 p-3 rounded-lg border">
-                            <p class="text-sm font-semibold text-gray-700 mb-1">Preview</p>
-                            <pre class="custom-scrollbar text-xs text-gray-800 bg-white p-2 rounded-md overflow-auto max-h-40 whitespace-pre-wrap">${prev}</pre>
-                        </div>
-                        <button onclick='window.copyText(${esc})' class="mt-3 px-3 py-1 bg-purple-500 text-white text-xs rounded-full hover:bg-purple-600">Copy Full Text</button>
-                    </div>
-                `;
-            });
-            
-            btn.classList.remove('hidden');
-        }
-
-        window.copyText = (txt) => {
-            const ta = document.createElement('textarea');
-            ta.value = txt;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand('copy');
-            document.body.removeChild(ta);
-            updateStatus('Copied to clipboard', 'success');
-        };
-
-        window.handleOverride = (pmid) => {
-            const a = state.articles.find(x => x.PMID === pmid);
-            if (a) {
-                a.Override = true;
-                renderResults();
-                updateStatus(`PMID ${pmid} manually included`, 'info');
-            }
-        };
-
-        window.exportResults = () => {
-            const data = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.articles, null, 2));
-            const a = document.createElement('a');
-            a.setAttribute("href", data);
-            a.setAttribute("download", "slr_results.json");
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            updateStatus('Results exported', 'info');
-        };
-
-        document.getElementById('fileInput').addEventListener('change', () => {
-            const files = document.getElementById('fileInput').files;
-            if (!files.length) return;
-            
-            Object.keys(state.uploadedTexts).forEach(k => {
-                if (!k.startsWith('AUTO_')) delete state.uploadedTexts[k];
-            });
-            
-            Array.from(files).forEach(f => {
-                if (!f.type.startsWith('text/') && !/\.(txt|md|log|csv)$/i.test(f.name)) return;
-                
-                const r = new FileReader();
-                r.onload = e => {
-                    state.uploadedTexts[f.name] = e.target.result;
-                    renderFiles();
-                };
-                r.onerror = e => console.error('File read error:', e);
-                r.readAsText(f);
-            });
-        });
-
-        document.getElementById('criteria-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                getKey();
-            } catch (err) {
-                updateStatus(err.message, 'error');
-                return;
-            }
-            
-            const q = document.getElementById('research-question').value.trim();
-            const dl = document.getElementById('date-limit').value.trim();
-            state.dateLimit = dl ? parseInt(dl) : null;
-            
-            const result = await generateCriteria(q);
-            if (result) {
-                document.getElementById('pubmed-query').value = result.SuggestedPubmedQuery || '';
-                document.getElementById('inclusion-criteria').value = JSON.stringify({ Inclusion: result.Inclusion, Exclusion: result.Exclusion }, null, 2);
-                state.criteria = { Inclusion: result.Inclusion, Exclusion: result.Exclusion };
-                state.pubmedQuery = result.SuggestedPubmedQuery;
-                document.getElementById('review-panel').classList.remove('hidden');
-            }
-        });
-
-        document.getElementById('screening-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            try {
-                getKey();
-            } catch (err) {
-                updateStatus(err.message, 'error');
-                return;
-            }
-            
-            setLoading('start-screening-button', true);
-            cancelOp = false;
-            state.articles = [];
-            state.uploadedTexts = {};
-            state.currentDraft = '';
-            
-            try {
-                state.criteria = JSON.parse(document.getElementById('inclusion-criteria').value);
-                state.pubmedQuery = document.getElementById('pubmed-query').value;
-                
-                const uids = await fetchPubMed(state.pubmedQuery, state.dateLimit);
-                if (!uids.length) {
-                    updateStatus('No articles found', 'info');
-                    setLoading('start-screening-button', false);
-                    return;
-                }
-                
-                const raw = await fetchAbstracts(uids);
-                updateStatus(`Screening ${raw.length} articles...`, 'process');
-                
-                for (let i = 0; i < raw.length; i += BATCH_SIZE) {
-                    if (cancelOp) break;
-                    const batch = raw.slice(i, i + BATCH_SIZE);
-                    for (const a of batch) {
-                        if (cancelOp) break;
-                        updateProgress(state.articles.length + 1, raw.length, 'Screening');
-                        const r = await screenArticle(a, state.criteria);
-                        state.articles.push({ ...a, ...r });
-                        await new Promise(res => setTimeout(res, 1100));
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "Decision": { "type": "STRING", "enum": ["INCLUDE", "EXCLUDE"] },
+                            "Category": { "type": "STRING" },
+                            "Reasoning": { "type": "STRING" }
+                        }
                     }
                 }
+            };
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 
-                updateProgress(0, 0);
-                if (!cancelOp) {
-                    renderResults();
-                    updateStatus(`Screening complete! ${state.articles.length} articles reviewed`, 'success');
+                if (jsonText) {
+                    const llmResult = JSON.parse(jsonText);
+                    return {
+                        Decision: llmResult.Decision,
+                        Category: llmResult.Category,
+                        Reasoning: llmResult.Reasoning,
+                        Override: false
+                    };
+                } else {
+                    throw new Error("LLM returned an empty or unparsable response.");
                 }
-            } catch (err) {
-                updateStatus('Error: ' + err.message, 'error');
-            } finally {
-                setLoading('start-screening-button', false);
+            } catch (error) {
+                console.error("LLM screening error for PMID", article.PMID, error);
+                return {
+                    Decision: 'ERROR',
+                    Category: 'ERROR',
+                    Reasoning: 'LLM failed to process article.',
+                    Override: false
+                };
             }
+        }
+        
+        /**
+         * Step 6: Generates a draft Systematic Review Report based on included articles.
+         */
+        async function generateSLRReport() {
+            setButtonLoading('generate-report-button', true);
+            const outputEl = document.getElementById('slr-draft-output');
+            outputEl.innerHTML = 'Preparing included data...';
+            document.getElementById('modification-panel').classList.add('hidden'); 
+            appState.currentDraft = ''; 
+
+            // Filter logic: Only include articles that were successfully included in the final screening.
+            const articlesToConsider = appState.articles.filter(a => {
+                const isFinal = a.FinalDecision && a.FinalDecision === 'FINAL_INCLUDE';
+                const isAbstractOnly = !a.FinalDecision && ((a.Decision === 'INCLUDE' && !a.Override) || a.Override);
+                return isFinal || isAbstractOnly;
+            });
+            
+            if (articlesToConsider.length === 0) {
+                outputEl.innerHTML = 'No articles were included in the final screening list. Cannot generate a report.';
+                setButtonLoading('generate-report-button', false);
+                return;
+            }
+
+            const articleDataSummary = articlesToConsider.map(a => `
+PMID: ${a.PMID}
+Title: ${a.Title}
+Abstract (Excerpt): ${a.Abstract.substring(0, 300)}...
+LLM Category: ${a.Category}
+Full Text Status: ${a.FullTextFileName ? 'Available' : 'NOT Available'}
+`).join('\n---\n');
+
+            const researchQuestion = document.getElementById('research-question').value.trim();
+            const criteriaText = document.getElementById('inclusion-criteria').value.trim();
+            
+            // --- UPDATED SYSTEM PROMPT FOR CITATIONS ---
+            const systemPrompt = `You are a professional systematic review writer. Your task is to synthesize the provided articles into a concise, well-structured, academic draft of a Systematic Review Report. Structure the output clearly using Markdown headings (# Introduction, ## Methods Summary, ## Results Synthesis, and ## Conclusion). The tone should be formal and objective. Critically, you MUST include **inline citations** in the text using the format **(PMID: [PMID number])** for every specific finding or claim. Finally, you MUST append a section titled **## References** at the very end, listing the full citation (Title and PMID) for every article used in the synthesis. Do not include any introductory text before the Markdown document.`;
+
+            let userQuery = `
+Generate a Systematic Review Draft based on the following information:
+
+1. Primary Research Question: ${researchQuestion}
+2. Total Included Articles: ${articlesToConsider.length}
+3. Initial Search Criteria Summary (for Methods section): ${criteriaText}
+4. Synthesize the findings and categories from these article abstracts. Use the PMID provided for each article to create your inline citations:
+
+${articleDataSummary}
+`;
+            
+            const draftingInstructions = document.getElementById('drafting-instructions').value.trim();
+            if (draftingInstructions) {
+                userQuery += `\n\n5. USER DRAFTING INSTRUCTIONS: ${draftingInstructions}`;
+            }
+
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${apiKey}`;
+
+            try {
+                updateStatus('Generating SLR Draft (Step 6)... This may take a moment.', 'process');
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const reportText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (reportText) {
+                    appState.currentDraft = reportText;
+                    
+                    let htmlReport = reportText
+                        .replace(/^#{1}\s*(.*)$/gm, '<h1>$1</h1>')
+                        .replace(/^#{2}\s*(.*)$/gm, '<h2>$1</h2>')
+                        .replace(/^#{3}\s*(.*)$/gm, '<h3>$1</h3>')
+                        .replace(/\n/g, '<br>');
+
+                    outputEl.innerHTML = htmlReport;
+                    document.getElementById('modification-panel').classList.remove('hidden'); 
+                    document.getElementById('prisma-panel').classList.remove('hidden');
+                    updateStatus('Systematic Review Draft successfully generated with citations. Review it and ask for modifications below.', 'success');
+                } else {
+                    outputEl.innerHTML = 'LLM failed to generate a report. Check logs for details.';
+                    throw new Error("LLM returned an empty report.");
+                }
+            } catch (error) {
+                console.error("SLR report generation error:", error);
+                updateStatus(`Report generation failed: ${error.message}`, 'error');
+            } finally {
+                setButtonLoading('generate-report-button', false);
+            }
+        }
+        
+        /**
+         * Step 7: Modifies the existing SLR Draft based on user request.
+         */
+        async function refineSLRReport() {
+            setButtonLoading('refine-report-button', true);
+            const outputEl = document.getElementById('slr-draft-output');
+            const modificationRequest = document.getElementById('modification-request').value.trim();
+
+            if (!appState.currentDraft) {
+                outputEl.innerHTML = 'Error: No draft to modify. Please generate the initial draft first.';
+                setButtonLoading('refine-report-button', false);
+                return;
+            }
+            if (!modificationRequest) {
+                outputEl.innerHTML = 'Please enter a modification request before clicking "Refine Draft."';
+                setButtonLoading('refine-report-button', false);
+                return;
+            }
+
+            // --- UPDATED SYSTEM PROMPT FOR CITATION REFINEMENT ---
+            const systemPrompt = `You are a professional editor and systematic review writer. Your task is to take the provided DRAFT REPORT and revise it entirely based on the MODIFICATION REQUEST. Output the complete, revised document using Markdown headings. **Crucially, you must maintain and update the inline citations (PMID: [PMID number]) and the final ## References section** based on the content of the revised draft. Do not include any introductory text before the revised Markdown document.`;
+
+            const userQuery = `
+DRAFT REPORT TO REVISE:
+---
+${appState.currentDraft}
+---
+
+MODIFICATION REQUEST:
+${modificationRequest}
+
+Provide the full, revised report.
+`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${apiKey}`;
+
+            try {
+                updateStatus('Applying modifications and generating new draft...', 'process');
+                const response = await fetchWithRetry(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const revisedText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (revisedText) {
+                    appState.currentDraft = revisedText; 
+                    
+                    let htmlReport = revisedText
+                        .replace(/^#{1}\s*(.*)$/gm, '<h1>$1</h1>')
+                        .replace(/^#{2}\s*(.*)$/gm, '<h2>$1</h2>')
+                        .replace(/^#{3}\s*(.*)$/gm, '<h3>$1</h3>')
+                        .replace(/\n/g, '<br>');
+
+                    outputEl.innerHTML = htmlReport;
+                    updateStatus('Draft successfully refined. Feel free to ask for more modifications.', 'success');
+                } else {
+                    outputEl.innerHTML = 'LLM failed to refine the report. Check logs for details.';
+                    throw new Error("LLM returned an empty revised document.");
+                }
+            } catch (error) {
+                console.error("SLR refinement error:", error);
+                updateStatus(`Draft refinement failed: ${error.message}`, 'error');
+            } finally {
+                setButtonLoading('refine-report-button', false);
+            }
+        }
+        
+        /**
+         * Step 8: Generates the PRISMA diagram SVG.
+         */
+        window.generatePrismaDiagram = () => {
+            const outputEl = document.getElementById('prisma-output');
+            outputEl.innerHTML = `<p class="text-gray-500 italic flex items-center justify-center">${SPINNER_HTML} Calculating metrics...</p>`;
+            
+            const totalFound = appState.articles.length;
+            
+            // Abstract Screening Metrics
+            const includedForFullText = appState.articles.filter(a => (a.Decision === 'INCLUDE' && !a.Override) || a.Override).length;
+            const excludedByAbstract = appState.articles.filter(a => a.Decision === 'EXCLUDE' && !a.Override).length;
+
+            // Full Text Review Metrics
+            const reviewedFullText = appState.articles.filter(a => a.FinalDecision).length;
+            const includedInSynthesis = appState.articles.filter(a => a.FinalDecision === 'FINAL_INCLUDE').length;
+            const excludedByFullText = appState.articles.filter(a => a.FinalDecision === 'FINAL_EXCLUDE').length;
+            
+            // Derived Metrics
+            const notReviewedFullText = includedForFullText - reviewedFullText;
+            const fullTextReasons = excludedByFullText > 0 ? excludedByFullText : 'N/A';
+            const synthesisTotal = includedInSynthesis;
+
+            const boxWidth = 280;
+            const boxHeight = 70;
+            const xCenter = 400; // Center point for the diagram
+            const yStart = 30;
+            const ySpacing = 120; // Vertical spacing between boxes
+            const arrowLength = 50;
+            
+            const drawBox = (x, y, text1, text2, color) => `
+                <rect x="${x - boxWidth / 2}" y="${y}" width="${boxWidth}" height="${boxHeight}" rx="8" ry="8" fill="#FFFFFF" stroke="${color}" stroke-width="2"/>
+                <text x="${x}" y="${y + 28}" font-weight="bold" fill="#333" font-size="14" text-anchor="middle">${text1}</text>
+                <text x="${x}" y="${y + 48}" fill="#555" font-size="12" text-anchor="middle">${text2}</text>
+            `;
+
+            const drawArrow = (x, y, length) => `
+                <line x1="${x}" y1="${y}" x2="${x}" y2="${y + length}" stroke="#6b7280" stroke-width="2" marker-end="url(#arrowhead)"/>
+            `;
+            
+            const drawHorizontalSplit = (y, leftText, rightText) => `
+                <line x1="${xCenter - boxWidth / 2}" y1="${y}" x2="${xCenter + boxWidth / 2}" y2="${y}" stroke="#6b7280" stroke-width="2"/>
+                <text x="${xCenter - boxWidth / 4}" y="${y + 15}" fill="#6b7280" font-size="12" text-anchor="middle">${leftText}</text>
+                <text x="${xCenter + boxWidth / 4}" y="${y + 15}" fill="#6b7280" font-size="12" text-anchor="middle">${rightText}</text>
+            `;
+            
+            const svgContent = `
+                <svg width="100%" height="700" viewBox="0 0 800 700" xmlns="http://www.w3.org/2000/svg" style="font-family: 'Inter', sans-serif;">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#6b7280" />
+                        </marker>
+                    </defs>
+
+                    <!-- Phase 1: Identification -->
+                    ${drawBox(xCenter, yStart, 'Identification', `Records identified through search (${totalFound})`, '#2563EB')}
+                    ${drawArrow(xCenter, yStart + boxHeight, arrowLength)}
+                    
+                    <!-- Phase 2: Screening -->
+                    ${drawBox(xCenter, yStart + ySpacing, 'Screening', `Records screened (${totalFound})`, '#2563EB')}
+                    
+                    <line x1="${xCenter}" y1="${yStart + ySpacing + boxHeight}" x2="${xCenter}" y2="${yStart + ySpacing * 2 - arrowLength}" stroke="#6b7280" stroke-width="2" marker-end="url(#arrowhead)"/>
+                    
+                    <!-- Screening Exclusion -->
+                    <rect x="${xCenter + boxWidth/2 + 30}" y="${yStart + ySpacing + 10}" width="180" height="50" rx="8" ry="8" fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
+                    <text x="${xCenter + boxWidth/2 + 120}" y="${yStart + ySpacing + 40}" fill="#EF4444" font-size="12" text-anchor="middle">Records excluded (${excludedByAbstract})</text>
+                    <line x1="${xCenter + boxWidth/2}" y1="${yStart + ySpacing + boxHeight/2}" x2="${xCenter + boxWidth/2 + 30}" y2="${yStart + ySpacing + boxHeight/2}" stroke="#EF4444" stroke-width="2"/>
+
+                    <!-- Phase 3: Eligibility (Full Text Review) -->
+                    ${drawBox(xCenter, yStart + ySpacing * 2, 'Eligibility', `Full-text articles assessed for eligibility (${includedForFullText})`, '#9333EA')}
+                    ${drawArrow(xCenter, yStart + ySpacing * 2 + boxHeight, arrowLength)}
+                    
+                    <!-- Eligibility Exclusion Split -->
+                    <g>
+                        <line x1="${xCenter - boxWidth / 2 + 10}" y1="${yStart + ySpacing * 2 + boxHeight / 2}" x2="${xCenter + boxWidth / 2 - 10}" y2="${yStart + ySpacing * 2 + boxHeight / 2}" stroke="#9333EA" stroke-width="1.5"/>
+                        <text x="${xCenter}" y="${yStart + ySpacing * 2 + boxHeight / 2 + 15}" fill="#6b7280" font-size="11" text-anchor="middle">Full Text Retrieval Status</text>
+                        
+                        <!-- Left Exclusion Arrow (Full Text Not Available) -->
+                        <line x1="${xCenter - boxWidth/4}" y1="${yStart + ySpacing * 3 - arrowLength}" x2="${xCenter - boxWidth/4}" y2="${yStart + ySpacing * 2 + boxHeight}" stroke="#EF4444" stroke-width="2" marker-end="url(#arrowhead)"/>
+                        <rect x="${xCenter - boxWidth/4 - 100}" y="${yStart + ySpacing * 3 - arrowLength - 50}" width="180" height="50" rx="8" ry="8" fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
+                        <text x="${xCenter - boxWidth/4 - 10}" y="${yStart + ySpacing * 3 - arrowLength - 20}" fill="#EF4444" font-size="12" text-anchor="middle">Full text NOT available (${notReviewedFullText})</text>
+                        
+                        <!-- Right Exclusion Arrow (Excluded by Full Text Review) -->
+                        <line x1="${xCenter + boxWidth/4}" y1="${yStart + ySpacing * 3 - arrowLength}" x2="${xCenter + boxWidth/4}" y2="${yStart + ySpacing * 2 + boxHeight}" stroke="#EF4444" stroke-width="2" marker-end="url(#arrowhead)"/>
+                        <rect x="${xCenter + boxWidth/4 - 80}" y="${yStart + ySpacing * 3 - arrowLength - 50}" width="180" height="50" rx="8" ry="8" fill="#FEE2E2" stroke="#EF4444" stroke-width="2"/>
+                        <text x="${xCenter + boxWidth/4 + 10}" y="${yStart + ySpacing * 3 - arrowLength - 20}" fill="#EF4444" font-size="12" text-anchor="middle">Excluded by full text review (${excludedByFullText})</text>
+
+                    </g>
+                    
+                    <!-- Phase 4: Included -->
+                    ${drawBox(xCenter, yStart + ySpacing * 3, 'Included', `Studies included in quantitative synthesis (${synthesisTotal})`, '#059669')}
+                    
+                </svg>
+            `;
+            
+            outputEl.innerHTML = svgContent;
+            updateStatus('PRISMA Diagram generated successfully.', 'success');
+        };
+
+        /**
+         * Renders a single article card for Step 3 (Abstract Screening).
+         */
+        function renderArticleCard(article) {
+            let statusClasses = '';
+            let statusText = article.Decision;
+            let actionButton = '';
+
+            const isIncluded = (article.Decision === 'INCLUDE' && !article.Override) || article.Override;
+
+            if (isIncluded) {
+                statusClasses = 'bg-green-100 text-green-800 border-green-300';
+                if (article.Override) {
+                    statusText = 'INCLUDED (Human Override)';
+                    statusClasses = 'bg-yellow-100 text-yellow-800 border-yellow-300';
+                } else {
+                    statusText = 'INCLUDED (AI)';
+                }
+            } else if (article.Decision === 'EXCLUDE' || article.Decision === 'ERROR') {
+                statusClasses = 'bg-red-100 text-red-800 border-red-300';
+                statusText = article.Decision === 'EXCLUDE' ? 'EXCLUDED (AI)' : 'ERROR';
+                
+                if (article.Decision === 'EXCLUDE') {
+                     actionButton = `
+                        <button onclick="window.handleOverride('${article.PMID}')" 
+                                class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                            Override & Include
+                        </button>`;
+                }
+            }
+
+            const pmcBadge = article.PMCID ? 
+                `<span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">PMC ID: ${article.PMCID.replace('PMC', '')}</span>` 
+                : '';
+
+            return `
+                <div id="card-${article.PMID}" class="article-card p-4 rounded-xl border-t-4 ${statusClasses}">
+                    <a href="https://pubmed.ncbi.nlm.nih.gov/${article.PMID}/" target="_blank" class="text-lg font-bold text-blue-800 hover:underline block">${article.Title}</a>
+                    <div class="flex flex-wrap gap-2 items-center mb-2">
+                        <p class="text-xs text-gray-500">PMID: ${article.PMID} | Category: <span class="font-semibold">${article.Category}</span></p>
+                        ${pmcBadge}
+                    </div>
+                    
+                    <div class="my-2 p-2 rounded-lg text-sm font-medium ${statusClasses} border">
+                        Status: ${statusText}
+                    </div>
+
+                    <p class="text-sm text-gray-700 font-semibold mt-3">AI Reasoning (Abstract):</p>
+                    <p class="text-sm text-gray-600 italic mb-3">"${article.Reasoning}"</p>
+
+                    <details class="text-xs text-gray-500 cursor-pointer mt-2">
+                        <summary>View Abstract</summary>
+                        <p class="mt-1 p-2 bg-gray-50 rounded">${article.Abstract}</p>
+                    </details>
+                    
+                    ${actionButton}
+                </div>
+            `;
+        }
+
+        /**
+         * Renders a single article card for Step 5 (Full Text Review).
+         */
+        function renderFinalReviewCard(article) {
+            let statusClasses = '';
+            let statusText = article.FinalDecision;
+            
+            const isFinalIncluded = article.FinalDecision === 'FINAL_INCLUDE';
+
+            if (isFinalIncluded) {
+                statusClasses = 'bg-purple-100 text-purple-800 border-purple-300';
+                statusText = 'FINAL INCLUDED (FULL TEXT)';
+            } else if (article.FinalDecision === 'FINAL_EXCLUDE' || article.FinalDecision === 'ERROR') {
+                statusClasses = 'bg-red-100 text-red-800 border-red-300';
+                statusText = article.FinalDecision === 'FINAL_EXCLUDE' ? 'FINAL EXCLUDED (FULL TEXT)' : 'ERROR';
+            } else {
+                return ''; // Should not happen if Step 5 is run successfully
+            }
+
+            return `
+                <div id="final-card-${article.PMID}" class="article-card p-4 rounded-xl border-t-4 ${statusClasses}">
+                    <a href="https://pubmed.ncbi.nlm.nih.gov/${article.PMID}/" target="_blank" class="text-lg font-bold text-blue-800 hover:underline block">${article.Title}</a>
+                    <p class="text-xs text-gray-500 mb-2">
+                        PMID: ${article.PMID} | Source: <span class="font-semibold text-purple-600">${article.FullTextFileName.startsWith('AUTO_') ? 'Auto-Retrieved (PMC)' : 'Manually Uploaded'}</span>
+                    </p>
+                    
+                    <div class="my-2 p-2 rounded-lg text-sm font-medium ${statusClasses} border">
+                        Status: ${statusText}
+                    </div>
+
+                    <p class="text-sm text-gray-700 font-semibold mt-3">Final LLM Reasoning:</p>
+                    <p class="text-sm text-gray-600 italic mb-3">"${article.FinalReasoning}"</p>
+                </div>
+            `;
+        }
+
+        /**
+         * Renders the entire results view for Step 3.
+         */
+        function renderResults() {
+            const includedListEl = document.getElementById('included-list');
+            const excludedListEl = document.getElementById('excluded-list');
+            const includedCountEl = document.getElementById('included-count');
+            const excludedCountEl = document.getElementById('excluded-count');
+
+            includedListEl.innerHTML = '';
+            excludedListEl.innerHTML = '';
+            
+            const included = appState.articles.filter(a => (a.Decision === 'INCLUDE' && !a.Override) || a.Override);
+            const excluded = appState.articles.filter(a => a.Decision === 'EXCLUDE' && !a.Override);
+
+            included.forEach(article => {
+                includedListEl.innerHTML += renderArticleCard(article);
+            });
+
+            excluded.forEach(article => {
+                excludedListEl.innerHTML += renderArticleCard(article);
+            });
+            
+            includedCountEl.textContent = included.length;
+            excludedCountEl.textContent = excluded.length;
+            document.getElementById('results-panel').classList.remove('hidden');
+            
+            // Show Step 4 (Upload)
+            if (included.length > 0) {
+                document.getElementById('upload-panel').classList.remove('hidden');
+                // Run automatic full text retrieval immediately
+                attemptFullTextRetrieval();
+            } else {
+                document.getElementById('upload-panel').classList.add('hidden');
+                document.getElementById('full-text-review-panel').classList.add('hidden');
+                document.getElementById('report-panel').classList.add('hidden');
+                document.getElementById('modification-panel').classList.add('hidden');
+                document.getElementById('prisma-panel').classList.add('hidden');
+            }
+        }
+        
+        /**
+         * Renders the entire results view for Step 5.
+         */
+        function renderFinalReviewResults() {
+            const finalReviewListEl = document.getElementById('final-review-list');
+            finalReviewListEl.innerHTML = '';
+
+            const reviewedArticles = appState.articles.filter(a => a.FinalDecision);
+
+            if (reviewedArticles.length === 0) {
+                finalReviewListEl.innerHTML = `<p class="text-center text-gray-500 italic">No articles were successfully reviewed with full text.</p>`;
+                return;
+            }
+
+            reviewedArticles.forEach(article => {
+                finalReviewListEl.innerHTML += renderFinalReviewCard(article);
+            });
+        }
+
+        // --- Document Upload/Preview Functions ---
+        
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function createFileCard(fileName, content) {
+            const isAuto = fileName.startsWith('AUTO_');
+            const fileSource = isAuto ? 
+                `<span class="text-xs font-semibold text-green-600">Auto-Retrieved (PMC)</span>` :
+                `<span class="text-xs font-semibold text-purple-600">Manually Uploaded</span>`;
+
+            const previewText = content.substring(0, 1000) + (content.length > 1000 ? '...\n\n[Content truncated for preview]' : '');
+            const escapedContent = JSON.stringify(content);
+
+            const sizeDisplay = isAuto ? 'Size: N/A' : `Size: ${formatBytes(new TextEncoder().encode(content).length)}`;
+
+            return `
+                <div class="file-card p-4 rounded-xl shadow-md border-l-4 ${isAuto ? 'border-green-500 bg-green-50' : 'border-purple-500 bg-white'}">
+                    <div class="flex items-center justify-between mb-3 border-b pb-2">
+                        <h3 class="text-lg font-bold text-gray-700 truncate mr-4">${fileName}</h3>
+                        ${fileSource}
+                    </div>
+                    <p class="text-xs text-gray-500 mb-2">${sizeDisplay}</p>
+
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <p class="text-sm font-semibold text-gray-700 mb-1">Preview (First ${Math.min(1000, content.length)} Chars)</p>
+                        <pre class="custom-scrollbar text-xs text-gray-800 bg-white p-2 rounded-md overflow-auto max-h-40 whitespace-pre-wrap break-words border border-gray-300">
+${previewText}
+                        </pre>
+                    </div>
+
+                    <div class="mt-3 flex justify-end">
+                        <button onclick='window.copyToClipboard("${fileName}", ${escapedContent})' 
+                                class="copy-btn px-3 py-1 bg-purple-500 text-white text-xs font-medium rounded-full hover:bg-purple-600 transition-colors duration-200 shadow-md">
+                            Copy Full Text
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        window.copyToClipboard = (fileName, content) => {
+            const textarea = document.createElement('textarea');
+            textarea.value = content;
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            const btn = event.target;
+
+            try {
+                document.execCommand('copy');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                btn.classList.remove('bg-purple-500', 'hover:bg-purple-600');
+                btn.classList.add('bg-green-500', 'hover:bg-green-600');
+                
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.classList.add('bg-purple-500', 'hover:bg-purple-600');
+                    btn.classList.remove('bg-green-500', 'hover:bg-green-600');
+                }, 1500);
+
+            } catch (err) {
+                console.error('Could not copy text: ', err);
+                updateStatus('Failed to copy text to clipboard.', 'error');
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
+
+        // Renders both manually uploaded and auto-retrieved files
+        function renderFullTextUploadStatus() {
+            const fileListContainer = document.getElementById('fileListContainer');
+            const initialMessage = document.getElementById('initialMessage');
+            const startReviewBtn = document.getElementById('start-full-text-review-button');
+            
+            const fileNames = Object.keys(appState.uploadedTexts);
+
+            if (fileNames.length === 0) {
+                fileListContainer.innerHTML = '';
+                initialMessage.style.display = 'block';
+                startReviewBtn.classList.add('hidden');
+                return;
+            }
+
+            fileListContainer.innerHTML = '';
+            initialMessage.style.display = 'none';
+
+            // Sort files to show auto-retrieved first
+            fileNames.sort((a, b) => (a.startsWith('AUTO_') === b.startsWith('AUTO_')) ? 0 : a.startsWith('AUTO_') ? -1 : 1);
+
+            fileNames.forEach(fileName => {
+                const content = appState.uploadedTexts[fileName];
+                fileListContainer.innerHTML += createFileCard(fileName, content);
+            });
+            
+            // Show the review button if any file was successfully loaded
+            startReviewBtn.classList.remove('hidden');
+        }
+
+
+        window.handleFileSelect = () => {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+
+            if (files.length === 0) {
+                // If user cancels, we don't clear auto-retrieved files
+                renderFullTextUploadStatus();
+                return;
+            }
+
+            // Clear only manual uploads, keep auto-retrieved ones
+            Object.keys(appState.uploadedTexts).forEach(key => {
+                if (!key.startsWith('AUTO_')) {
+                    delete appState.uploadedTexts[key];
+                }
+            });
+
+            const fileListContainer = document.getElementById('fileListContainer');
+            
+            Array.from(files).forEach(file => {
+                const isTextFile = file.type.startsWith('text/') || /\.(txt|md|log|csv)$/i.test(file.name);
+                if (!isTextFile) {
+                    console.warn(`Skipping non-text file: ${file.name}`);
+                    return; 
+                }
+
+                const reader = new FileReader();
+                const fileName = file.name;
+
+                // Add a placeholder card immediately
+                const loadingCard = document.createElement('div');
+                loadingCard.id = `loading-${fileName.replace(/\s/g, '-')}`;
+                loadingCard.className = "bg-yellow-50 p-4 rounded-xl shadow-md border border-yellow-300 animate-pulse";
+                loadingCard.innerHTML = `<p class="text-yellow-700 font-medium text-sm">Loading: ${fileName}...</p>`;
+                fileListContainer.appendChild(loadingCard);
+
+                reader.onload = function(e) {
+                    const content = e.target.result;
+                    appState.uploadedTexts[fileName] = content; // Store the content
+                    
+                    // Remove loading card and re-render all
+                    document.getElementById(`loading-${fileName.replace(/\s/g, '-')}`)?.remove();
+                    renderFullTextUploadStatus();
+                };
+
+                reader.onerror = function(e) {
+                    console.error("Error reading file:", e.target.error);
+                    const errorCard = `<div class="bg-red-50 p-4 rounded-xl shadow-md border border-red-300"><p class="text-red-700 font-medium text-sm">Error loading ${fileName}: ${e.target.error.name}</p></div>`;
+                    loadingCard.outerHTML = errorCard;
+                };
+
+                reader.readAsText(file);
+            });
+        }
+
+
+        // --- Core Logic & Handlers ---
+
+        window.handleOverride = (pmid) => {
+            const article = appState.articles.find(a => a.PMID === pmid);
+            if (article) {
+                article.Override = true;
+                renderResults();
+                updateStatus(`PMID ${pmid} has been manually included. Please re-review the final included list.`, 'info');
+            }
+        };
+
+        async function handleCriteriaGeneration(event) {
+            event.preventDefault();
+            document.getElementById('review-panel').classList.add('hidden');
+            document.getElementById('results-panel').classList.add('hidden');
+            document.getElementById('upload-panel').classList.add('hidden');
+            document.getElementById('full-text-review-panel').classList.add('hidden');
+            document.getElementById('report-panel').classList.add('hidden');
+            document.getElementById('modification-panel').classList.add('hidden');
+            document.getElementById('prisma-panel').classList.add('hidden');
+            
+            const researchQuestion = document.getElementById('research-question').value.trim();
+            const dateLimit = document.getElementById('date-limit').value.trim();
+            
+            if (!researchQuestion) {
+                updateStatus('Please enter a research question first.', 'error');
+                return;
+            }
+
+            appState.dateLimit = dateLimit ? parseInt(dateLimit) : null;
+
+            const llmOutput = await generateCriteriaAndQuery(researchQuestion);
+
+            if (llmOutput) {
+                document.getElementById('pubmed-query').value = llmOutput.SuggestedPubmedQuery || '';
+                
+                const criteriaJson = JSON.stringify({
+                    Inclusion: llmOutput.Inclusion,
+                    Exclusion: llmOutput.Exclusion
+                }, null, 2);
+                document.getElementById('inclusion-criteria').value = criteriaJson;
+                
+                appState.criteria = {
+                    Inclusion: llmOutput.Inclusion,
+                    Exclusion: llmOutput.Exclusion
+                };
+                appState.pubmedQuery = llmOutput.SuggestedPubmedQuery;
+                
+                document.getElementById('review-panel').classList.remove('hidden');
+            }
+        }
+
+        async function startScreening(event) {
+            event.preventDefault();
+            setButtonLoading('start-screening-button', true);
+            document.getElementById('results-panel').classList.add('hidden');
+            document.getElementById('upload-panel').classList.add('hidden');
+            document.getElementById('full-text-review-panel').classList.add('hidden');
+            document.getElementById('report-panel').classList.add('hidden'); 
+            document.getElementById('modification-panel').classList.add('hidden');
+            document.getElementById('prisma-panel').classList.add('hidden');
+            appState.articles = [];
+            appState.uploadedTexts = {}; // Clear previous uploads/auto-retrieved
+            appState.currentDraft = '';
+            document.getElementById('slr-draft-output').innerHTML = '';
+            document.getElementById('retrieval-status-message').classList.add('hidden');
+
+            const queryInput = document.getElementById('pubmed-query');
+            const criteriaInput = document.getElementById('inclusion-criteria');
+
+            try {
+                updateStatus('Starting process. Validating user-refined criteria...', 'info');
+                appState.criteria = JSON.parse(criteriaInput.value);
+                appState.pubmedQuery = queryInput.value;
+
+                const uids = await fetchPubmedUids(appState.pubmedQuery, appState.dateLimit);
+                if (uids.length === 0) {
+                    updateStatus("No articles found for that query or date range.", 'info');
+                    setButtonLoading('start-screening-button', false);
+                    return;
+                }
+                let rawArticles = await fetchAbstracts(uids);
+
+                updateStatus(`**Starting AI abstract screening for ${rawArticles.length} articles.** This step uses the Gemini API for analysis.`, 'process');
+                
+                const screeningPromises = rawArticles.map(article => {
+                    return screenArticle(article, appState.criteria).then(llmResult => {
+                        return { ...article, ...llmResult };
+                    });
+                });
+
+                appState.articles = await Promise.all(screeningPromises);
+
+                renderResults();
+                updateStatus(`Abstract screening complete! ${appState.articles.length} total articles reviewed. Proceed to Step 4.`, 'success');
+
+            } catch (error) {
+                console.error("Screening process failed:", error);
+                updateStatus(`An error occurred: ${error.message}. Check your criteria JSON format or try a different query.`, 'error');
+            } finally {
+                setButtonLoading('start-screening-button', false);
+            }
+        }
+
+        window.exportResults = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState.articles, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "slr_screening_results.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            updateStatus('Screening results exported as JSON.', 'info');
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('criteria-form').addEventListener('submit', handleCriteriaGeneration);
+            document.getElementById('screening-form').addEventListener('submit', startScreening);
+            document.getElementById('generate-report-button').addEventListener('click', generateSLRReport);
+            document.getElementById('refine-report-button').addEventListener('click', refineSLRReport); 
+            // Note: generatePrismaDiagram is called via onclick attribute
+            updateStatus('Enter your research question and click "Generate Criteria & PubMed Query" to start.', 'info');
         });
 
-        document.getElementById('cancel-btn').addEventListener('click', () => {
-            cancelOp = true;
-            updateStatus('Cancelling...', 'info');
-            document.getElementById('cancel-btn').classList.add('hidden');
-        });
-
-        updateStatus('Enter your API key and research question to start', 'info');
     </script>
 </body>
 </html>
