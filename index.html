@@ -72,7 +72,7 @@
 <body>
     <div class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
         <header class="text-center mb-8 p-6 bg-white rounded-xl shadow-lg">
-            <h1 class="text-4xl font-extrabold text-blue-800">Steve's AI-Assisted SLR Screener</h1>
+            <h1 class="text-4xl font-extrabold text-blue-800">AI-Assisted SLR Screener</h1>
             <p class="text-lg text-gray-600 mt-2">Automate initial article screening using PubMed and Gemini.</p>
         </header>
 
@@ -259,7 +259,7 @@
     <!-- JavaScript Logic -->
     <script type="module">
         // Global variables for Canvas environment
-        const apiKey = "AIzaSyDpqUR_N4g_lHf1zAW53st7iTWpDQlkXsM";
+        const apiKey = "";
         const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
         const PUBMED_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
 
@@ -658,7 +658,7 @@
         async function fetchPubmedUids(query, dateLimit) {
             updateStatus(`Searching PubMed for "${query}"...`, 'process');
             
-            let url = `${PUBMED_BASE_URL}esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=100000&retmode=json`;
+            let url = `${PUBMED_BASE_URL}esearch.fcgi?db=pubmed&term=${encodeURIComponent(query)}&retmax=100&sort=relevance&retmode=json`;
             
             if (dateLimit && !isNaN(parseInt(dateLimit))) {
                 const currentYear = new Date().getFullYear();
@@ -673,7 +673,7 @@
             
             if (data.esearchresult && data.esearchresult.idlist) {
                 const uids = data.esearchresult.idlist;
-                updateStatus(`Found ${uids.length} articles. Retrieving abstracts...`, 'process');
+                updateStatus(`Found ${uids.length} articles (limited to top 100 by relevance). Retrieving abstracts...`, 'process');
                 return uids;
             } else {
                 const errorMessage = data.esearchresult?.error || 'PubMed search returned an unexpected result.';
