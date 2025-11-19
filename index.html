@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-Assisted SLR Screener</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js for client-side PDF parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <!-- Use Inter font -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
@@ -198,15 +200,15 @@
             <div id="retrieval-status-message" class="mb-4 p-3 rounded-lg bg-yellow-50 text-yellow-800 font-medium hidden"></div>
 
             <div class="border-2 border-dashed border-purple-200 p-6 rounded-xl bg-purple-50">
-                <input type="file" id="fileInput" accept=".txt,.md,.log,.csv" multiple class="hidden" onchange="window.handleFileSelect()">
+                <input type="file" id="fileInput" accept=".txt,.md,.log,.csv,.pdf" multiple class="hidden" onchange="window.handleFileSelect()">
 
                 <label for="fileInput" class="file-upload-label flex flex-col items-center justify-center p-8 border-4 border-purple-500 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors duration-200">
                     <svg class="w-12 h-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.884-7.904A5 5 0 0115 5a4 4 0 01.442 7.91l-1.074.214a1 1 0 00-.773.96l-.001 1.054a1 1 0 00.773.96l2.149.429a1 1 0 01.773.96v1.054a1 1 0 00.773.96l-1.074.214A4 4 0 0117 21a4 4 0 01-4-4v-1.054a1 1 0 00-.773-.96l-2.149-.429a1 1 0 01-.773-.96v-1.054a1 1 0 00-.773-.96l-1.074-.214A4 4 0 017 16z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 17v-8m0 0l-3 3m3-3l3 3"></path>
                     </svg>
-                    <span class="text-lg font-semibold">Click here to upload text files (PMID in filename)</span>
-                    <span class="text-sm font-medium text-purple-600 mt-1">(Supports .txt, .md, .log, .csv)</span>
+                    <span class="text-lg font-semibold">Click here to upload files (PMID in filename)</span>
+                    <span class="text-sm font-medium text-purple-600 mt-1">(Supports .txt, .md, .log, .csv, .pdf)</span>
                 </label>
             </div>
             
@@ -296,6 +298,11 @@
         const apiKey = "AIzaSyDpqUR_N4g_lHf1zAW53st7iTWpDQlkXsM"; 
         const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
         const PUBMED_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+
+        // Set up PDF.js Worker
+        if (window.pdfjsLib) {
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
 
         // Application State
         const appState = {
@@ -1390,6 +1397,26 @@ ${previewText}
                 document.body.removeChild(textarea);
             }
         }
+        
+        // --- Helper function to read PDF content ---
+        async function readPdfToText(file) {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = '';
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageText = textContent.items.map(item => item.str).join(' ');
+                    fullText += pageText + '\n';
+                }
+                return fullText;
+            } catch (error) {
+                console.error("Error parsing PDF:", error);
+                throw new Error("Failed to parse PDF file.");
+            }
+        }
 
         // Renders both manually uploaded and auto-retrieved files
         function renderFullTextUploadStatus() {
@@ -1422,7 +1449,7 @@ ${previewText}
         }
 
 
-        window.handleFileSelect = () => {
+        window.handleFileSelect = async () => {
             const fileInput = document.getElementById('fileInput');
             const files = fileInput.files;
 
@@ -1441,40 +1468,52 @@ ${previewText}
 
             const fileListContainer = document.getElementById('fileListContainer');
             
-            Array.from(files).forEach(file => {
+            const fileArray = Array.from(files);
+            
+            for (const file of fileArray) {
                 const isTextFile = file.type.startsWith('text/') || /\.(txt|md|log|csv)$/i.test(file.name);
-                if (!isTextFile) {
-                    console.warn(`Skipping non-text file: ${file.name}`);
-                    return; 
+                const isPdfFile = file.type === 'application/pdf' || file.name.endsWith('.pdf');
+
+                if (!isTextFile && !isPdfFile) {
+                    console.warn(`Skipping unsupported file: ${file.name}`);
+                    continue;
                 }
 
-                const reader = new FileReader();
                 const fileName = file.name;
 
                 // Add a placeholder card immediately
                 const loadingCard = document.createElement('div');
-                loadingCard.id = `loading-${fileName.replace(/\s/g, '-')}`;
+                loadingCard.id = `loading-${fileName.replace(/[\s\.]/g, '-')}`;
                 loadingCard.className = "bg-yellow-50 p-4 rounded-xl shadow-md border border-yellow-300 animate-pulse";
-                loadingCard.innerHTML = `<p class="text-yellow-700 font-medium text-sm">Loading: ${fileName}...</p>`;
+                loadingCard.innerHTML = `<p class="text-yellow-700 font-medium text-sm">Loading & Parsing: ${fileName}...</p>`;
                 fileListContainer.appendChild(loadingCard);
 
-                reader.onload = function(e) {
-                    const content = e.target.result;
+                try {
+                    let content = '';
+                    if (isPdfFile) {
+                        content = await readPdfToText(file);
+                    } else {
+                         // Read text file
+                        content = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => resolve(e.target.result);
+                            reader.onerror = (e) => reject(e.target.error);
+                            reader.readAsText(file);
+                        });
+                    }
+                    
                     appState.uploadedTexts[fileName] = content; // Store the content
                     
-                    // Remove loading card and re-render all
-                    document.getElementById(`loading-${fileName.replace(/\s/g, '-')}`)?.remove();
-                    renderFullTextUploadStatus();
-                };
-
-                reader.onerror = function(e) {
-                    console.error("Error reading file:", e.target.error);
-                    const errorCard = `<div class="bg-red-50 p-4 rounded-xl shadow-md border border-red-300"><p class="text-red-700 font-medium text-sm">Error loading ${fileName}: ${e.target.error.name}</p></div>`;
-                    loadingCard.outerHTML = errorCard;
-                };
-
-                reader.readAsText(file);
-            });
+                } catch (error) {
+                    console.error("Error reading file:", error);
+                    // We can show an error card if we want, or just log it
+                } finally {
+                    // Remove loading card
+                    document.getElementById(`loading-${fileName.replace(/[\s\.]/g, '-')}`)?.remove();
+                }
+            }
+            // Re-render all at the end
+            renderFullTextUploadStatus();
         }
 
 
